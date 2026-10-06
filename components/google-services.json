@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "764778624837-v3ujq8r7pkt1asi20ub647r0ilc5pgv3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sentistra.app",
+            "certificate_hash": "562e5f17eeea5612d8687ba2e192a8823ac0bc18"
+          }
+        },
+        {
           "client_id": "764778624837-642cn1r08i2clu4h2jf9c12etdp67en0.apps.googleusercontent.com",
           "client_type": 3
         }
