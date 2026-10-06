@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "KVFNews",
-    "slug": "KVFNews",
+    "name": "Sentistra",
+    "slug": "Sentistra",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "kvfnews",
+    "scheme": "sentistra",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.sentistra.app",
+      "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -27,19 +29,26 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-google-signin/google-signin",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/app_icon.png",
+          "imageWidth": 118,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#f8fafc",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#f8fafc"
           }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-sharing"
     ],
+    "extra": {
+      "googleWebClientId": "764778624837-642cn1r08i2clu4h2jf9c12etdp67en0.apps.googleusercontent.com"
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

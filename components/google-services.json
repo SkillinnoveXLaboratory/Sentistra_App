@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "764778624837",
+    "project_id": "sentistra",
+    "storage_bucket": "sentistra.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:764778624837:android:b851e01c9d1bec5ba9b02c",
+        "android_client_info": {
+          "package_name": "com.sentistra.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "764778624837-8bg404ahispnvec15t5g6qjhtcehjksr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sentistra.app",
+            "certificate_hash": "3d9266f43c68bef52a09fee13b29948dfebfe178"
+          }
+        },
+        {
+          "client_id": "764778624837-642cn1r08i2clu4h2jf9c12etdp67en0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgiiayXbD4WKxf2KfMUf4Hbh5a8E-wuhk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "764778624837-642cn1r08i2clu4h2jf9c12etdp67en0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
