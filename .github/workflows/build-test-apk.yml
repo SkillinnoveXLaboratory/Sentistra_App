@@ -1,4 +1,4 @@
-name: Build test APK
+name: Build Play Store AAB
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  build-android-apk:
-    name: Android release APK
+  build-android-aab:
+    name: Android release AAB
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -43,31 +43,30 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sentistra-release.jks"
           test -s "$RUNNER_TEMP/sentistra-release.jks"
 
-      - name: Build signed test APK
+      - name: Build signed Play Store bundle
         working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease \
+          ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/sentistra-release.jks" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
 
-      - name: Verify APK signature
+      - name: Verify AAB signature
         run: |
-          APK_SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
-          "$APK_SIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify -certs -verbose android/app/build/outputs/bundle/release/app-release.aab
 
-      - name: Upload installable APK
+      - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
-          name: Sentistra-signed-test-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: Sentistra-v1.0.0-play-store-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
       - name: Remove release signing key
         if: always()
