@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [signupDraft, setSignupDraftState] = useState({});
+  const [passwordResetDraft, setPasswordResetDraftState] = useState({});
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
@@ -16,6 +17,10 @@ export function AuthProvider({ children }) {
 
   const setSignupDraft = (updates) => {
     setSignupDraftState((current) => ({ ...current, ...updates }));
+  };
+
+  const setPasswordResetDraft = (updates) => {
+    setPasswordResetDraftState((current) => ({ ...current, ...updates }));
   };
 
   const setSession = async (session) => {
@@ -34,7 +39,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, sessionReady, setSession, updateUser, logout, signupDraft, setSignupDraft }}>
+    <AuthContext.Provider value={{ user, sessionReady, setSession, updateUser, logout, signupDraft, setSignupDraft, passwordResetDraft, setPasswordResetDraft }}>
       {children}
     </AuthContext.Provider>
   );

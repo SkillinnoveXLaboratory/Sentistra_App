@@ -1,10 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Alert,
   Animated,
+  BackHandler,
   Easing,
   Image,
   Keyboard,
@@ -22,6 +23,7 @@ import {
 } from "react-native";
 import { useFonts } from "expo-font";
 import * as Clipboard from "expo-clipboard";
+import * as Speech from "expo-speech";
 import { File } from "expo-file-system";
 import { PlayfairDisplay_500Medium_Italic } from "@expo-google-fonts/playfair-display";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -598,6 +600,7 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const documentProcessing = documentJob?.status === "queued" || documentJob?.status === "processing";
   const displayedMode = documentProcessing ? "document" : mode;
   const [borderAnimation] = useState(() => new Animated.Value(0));
@@ -649,6 +652,8 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
     return () => timers.forEach(clearTimeout);
   }, [processing]);
 
+  useEffect(() => () => { Speech.stop(); }, []);
+
   const startHumanization = async () => {
     if (processing || !text.trim()) {
       if (!processing && !text.trim()) setErrorMessage("Enter some text before humanizing.");
@@ -657,6 +662,8 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
 
     setErrorMessage("");
     setResult(null);
+    await Speech.stop();
+    setSpeaking(false);
     setProcessSteps([]);
     Keyboard.dismiss();
     setProcessing(true);
@@ -688,6 +695,24 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
     await Clipboard.setStringAsync(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  };
+
+  const toggleOutputSpeech = async () => {
+    const output = result?.humanized_text?.trim();
+    if (!output) return;
+    if (await Speech.isSpeakingAsync()) {
+      await Speech.stop();
+      setSpeaking(false);
+      return;
+    }
+    setSpeaking(true);
+    Speech.speak(output, {
+      rate: 0.93,
+      pitch: 1,
+      onDone: () => setSpeaking(false),
+      onStopped: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
   };
 
   const borderColor = borderAnimation.interpolate({ inputRange: [0, 1], outputRange: [COLORS.border, COLORS.purple] });
@@ -742,6 +767,9 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
           <View style={styles.resultMeta}>
             <Text style={styles.resultLabel}>Word count <Text style={styles.resultValue}>{outputWordCount}</Text></Text>
             <View style={styles.resultActions}>
+              <Pressable style={[styles.speechIconButton, speaking && styles.speechIconButtonActive]} onPress={toggleOutputSpeech} accessibilityRole="button" accessibilityLabel={speaking ? "Stop reading humanized output" : "Read humanized output aloud"}>
+                <Ionicons name={speaking ? "stop" : "volume-high-outline"} size={18} color={speaking ? "#FFFFFF" : COLORS.purple} />
+              </Pressable>
               <Pressable style={styles.copyIconButton} onPress={copyOutput} accessibilityRole="button" accessibilityLabel="Copy humanized output">
                 <Ionicons name={copied ? "checkmark" : "copy-outline"} size={18} color={copied ? "#16A34A" : COLORS.purple} />
               </Pressable>
@@ -898,6 +926,18 @@ export default function DashboardScreen() {
   }, [router, sessionReady, user]);
 
   useEffect(() => {
+    if (!sessionReady || !user?.id) {
+      setBillingStatus(null);
+      return undefined;
+    }
+    let mounted = true;
+    getSubscriptionStatus()
+      .then((status) => { if (mounted) setBillingStatus(status); })
+      .catch(() => { if (mounted) setBillingStatus(null); });
+    return () => { mounted = false; };
+  }, [sessionReady, user?.id]);
+
+  useEffect(() => {
     if (!sessionReady || !user?.id) return undefined;
     let mounted = true;
     AsyncStorage.getItem(activeDocumentStorageKey(user.id)).then(async (jobId) => {
@@ -970,7 +1010,11 @@ export default function DashboardScreen() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [detectorJob]);
 
-  const logout = async () => { await clearUserSession(); router.replace("/"); };
+  const logout = async () => {
+    await clearUserSession();
+    router.dismissAll();
+    router.replace("/");
+  };
   const openSubscription = async () => {
     setSubscriptionOpen(true);
     setSubscriptionError("");
@@ -1049,7 +1093,22 @@ export default function DashboardScreen() {
     setActiveView(view);
   };
 
+  useEffect(() => {
+    const closeOpenSubpage = () => {
+      if (subscriptionOpen) { setSubscriptionOpen(false); return true; }
+      if (billingOpen) { setBillingOpen(false); return true; }
+      if (accountOpen) { setAccountOpen(false); return true; }
+      if (privacyOpen) { setPrivacyOpen(false); return true; }
+      return false;
+    };
+    const listener = BackHandler.addEventListener("hardwareBackPress", closeOpenSubpage);
+    return () => listener.remove();
+  }, [accountOpen, billingOpen, privacyOpen, subscriptionOpen]);
+
   useEffect(() => () => clearCashfreeCallback(), []);
+  const hasPaidPlan = billingStatus?.paid === true;
+  const isOnFreeTier = !hasPaidPlan && (billingStatus ? billingStatus.tier === true : user?.tier === true);
+  const requiresUpgrade = billingStatus?.paid === false && billingStatus?.tier === false;
   const renderView = () => {
     if (subscriptionOpen) return <SubscriptionPage checkoutProcessing={checkoutProcessing} errorMessage={subscriptionError} onBack={() => setSubscriptionOpen(false)} onClaim={claimSubscription} plan={subscriptionPlan} />;
     if (billingOpen) return <BillingPage billingError={billingError} billingLoading={billingLoading} billingStatus={billingStatus} onBack={() => setBillingOpen(false)} />;
@@ -1068,10 +1127,12 @@ export default function DashboardScreen() {
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
           <View style={styles.logoContainer}><Image source={require("../assets/images/app_icon.png")} style={styles.logoImage} /><Text style={styles.logoText}>Sentistra.io</Text></View>
-          <Pressable style={[styles.upgradeButton, isSmallScreen && styles.upgradeButtonCompact]} onPress={openSubscription}>
-            <Ionicons name="flash" size={15} color="#92400E" />{!isSmallScreen && <Text style={styles.upgradeText}>Upgrade</Text>}
+          <Pressable style={[styles.upgradeButton, hasPaidPlan && styles.plusButton, isSmallScreen && styles.upgradeButtonCompact]} onPress={hasPaidPlan ? openBilling : openSubscription} accessibilityLabel={hasPaidPlan ? "View Sentistra Plus billing" : "Upgrade Sentistra"}>
+            {hasPaidPlan ? <MaterialCommunityIcons name="crown" size={17} color="#FFFFFF" /> : <Ionicons name="flash" size={15} color="#92400E" />}{!isSmallScreen && <Text style={[styles.upgradeText, hasPaidPlan && styles.plusText]}>{hasPaidPlan ? "Plus" : "Upgrade"}</Text>}
           </Pressable>
         </View>
+        {isOnFreeTier && <View style={styles.freeTierBanner} accessibilityRole="text"><View style={styles.statusBannerContent}><Ionicons name="time-outline" size={17} color="#92400E" /><Text style={styles.freeTierBannerText}>You are on a 4-day free tier</Text></View></View>}
+        {requiresUpgrade && <Pressable style={styles.upgradeRequiredBanner} onPress={openSubscription} accessibilityRole="button" accessibilityLabel="Upgrade to Sentistra Plus"><View style={styles.statusBannerContent}><Ionicons name="lock-closed-outline" size={17} color="#B42318" /><Text style={styles.upgradeRequiredBannerText}>Your free tier has ended. Upgrade to Plus to continue.</Text></View><Ionicons name="chevron-forward" size={18} color="#B42318" style={styles.statusBannerChevron} /></Pressable>}
         <View style={styles.content}>{renderView()}</View>
         <Modal visible={false} animationType="slide" onRequestClose={() => setSubscriptionOpen(false)}>
           <SafeAreaView style={styles.subscriptionScreen} edges={["top", "left", "right", "bottom"]}>
@@ -1141,8 +1202,16 @@ const styles = StyleSheet.create({
   logoImage: { width: 26, height: 26, borderRadius: 7 },
   logoText: { color: COLORS.dark, fontSize: 20, fontWeight: "600", letterSpacing: -0.5 },
   upgradeButton: { minHeight: 36, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: "#FCD34D", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7" },
+  plusButton: { borderColor: "#6D28D9", backgroundColor: "#6D28D9", shadowColor: "#6D28D9", shadowOpacity: 0.22, shadowRadius: 7, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   upgradeButtonCompact: { width: 38, paddingHorizontal: 0, justifyContent: "center" },
   upgradeText: { color: "#92400E", fontSize: 14, fontWeight: "600" },
+  plusText: { color: "#FFFFFF", fontWeight: "700" },
+  freeTierBanner: { minHeight: 44, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#FEF3C7", borderBottomWidth: 1, borderBottomColor: "#FCD34D" },
+  upgradeRequiredBanner: { minHeight: 52, paddingHorizontal: 44, alignItems: "center", justifyContent: "center", backgroundColor: "#FEE2E2", borderBottomWidth: 1, borderBottomColor: "#FECACA", position: "relative" },
+  statusBannerContent: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  freeTierBannerText: { color: "#92400E", fontSize: 13, fontWeight: "700", textAlign: "center" },
+  upgradeRequiredBannerText: { color: "#B42318", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  statusBannerChevron: { position: "absolute", right: 18 },
   subscriptionScreen: { flex: 1, backgroundColor: COLORS.background },
   subscriptionHeader: { minHeight: 62, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.surface },
   subscriptionContent: { flexGrow: 1, padding: 20, justifyContent: "center" },
@@ -1296,6 +1365,8 @@ const styles = StyleSheet.create({
   resultMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   resultActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   copyIconButton: { width: 34, height: 34, borderWidth: 1, borderColor: "#DDD6FE", borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  speechIconButton: { width: 34, height: 34, borderWidth: 1, borderColor: "#DDD6FE", borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  speechIconButtonActive: { borderColor: COLORS.purple, backgroundColor: COLORS.purple },
   resultLabel: { color: COLORS.muted, fontSize: 13 },
   resultValue: { color: COLORS.dark, fontWeight: "700" },
   resultText: { marginTop: 18, color: COLORS.dark, fontSize: 16, lineHeight: 26 },

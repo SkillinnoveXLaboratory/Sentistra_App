@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -25,6 +25,12 @@ export default function SignupPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const canSubmit = password.length >= 8 && password === confirmPassword && !loading;
 
+  useEffect(() => {
+    if (!signupDraft.emailVerificationToken || !signupDraft.name || !signupDraft.phone) {
+      router.replace(signupDraft.emailVerificationToken ? "/signup-details" : "/email");
+    }
+  }, [router, signupDraft.emailVerificationToken, signupDraft.name, signupDraft.phone]);
+
   const createAccount = async () => {
     if (password.length < 8) {
       setError("Use a password with at least 8 characters.");
@@ -48,6 +54,7 @@ export default function SignupPasswordScreen() {
       });
       await setSession(session);
       setSignupDraft({ email: "", name: "", phone: "", otpChallengeId: "", emailVerificationToken: "" });
+      router.dismissAll();
       router.replace("/dashboard");
     } catch (requestError) {
       setError(requestError.message);

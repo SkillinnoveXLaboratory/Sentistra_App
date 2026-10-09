@@ -54,3 +54,22 @@ export function verifySignupOtp(email, challengeId, code) {
     code,
   });
 }
+
+export function requestPasswordResetOtp(email) {
+  return submitPublicRequest("/password-reset/request-otp", { email });
+}
+
+export function verifyPasswordResetOtp(email, challengeId, code) {
+  return submitPublicRequest("/password-reset/verify-otp", {
+    email,
+    challenge_id: challengeId,
+    code,
+  });
+}
+
+export function completePasswordReset(resetToken, password) {
+  return submitPublicRequest("/password-reset/complete", {
+    reset_token: resetToken,
+    password,
+  });
+}

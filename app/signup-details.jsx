@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +20,10 @@ export default function SignupDetailsScreen() {
   const [name, setName] = useState(signupDraft.name || "");
   const [phone, setPhone] = useState(signupDraft.phone || "");
   const canContinue = name.trim().length > 0 && phone.trim().length > 0;
+
+  useEffect(() => {
+    if (!signupDraft.email || !signupDraft.emailVerificationToken) router.replace("/email");
+  }, [router, signupDraft.email, signupDraft.emailVerificationToken]);
 
   const continueSignup = () => {
     setSignupDraft({ name: name.trim(), phone: phone.trim() });

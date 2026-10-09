@@ -32,6 +32,7 @@ export default function AuthScreen() {
       if (!idToken) return;
       const session = await submitAuthRequest("/google-sign-in", { idToken });
       await setSession(session);
+      router.dismissAll();
       router.replace("/dashboard");
     } catch (requestError) {
       await signOutGoogle();

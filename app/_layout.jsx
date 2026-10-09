@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
+import { Platform, StatusBar } from "react-native";
 import { AuthProvider } from "../src/auth-context";
 import { SentistraSplash } from "../src/sentistra-splash";
 
@@ -12,6 +12,12 @@ export default function Layout() {
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
   useEffect(() => {
+    // Keep the phone's system status bar available throughout the app.
+    StatusBar.setHidden(false, "fade");
+    if (Platform.OS === "android") {
+      StatusBar.setTranslucent(false);
+    }
+
     const fallback = setTimeout(() => {
       if (!nativeSplashHidden) {
         SplashScreen.hideAsync().catch(() => {});
@@ -29,7 +35,7 @@ export default function Layout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} hidden={false} />
       {showLaunchScreen ? (
         <SentistraSplash onReady={hideNativeSplash} onComplete={() => setShowLaunchScreen(false)} />
       ) : (

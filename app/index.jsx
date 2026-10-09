@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ImageBackground,
   Pressable,
@@ -9,11 +9,19 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../src/auth-context";
 
 const backgroundImage = require("../assets/images/index_img.png");
 
 export default function App() {
   const router = useRouter();
+  const { user, sessionReady } = useAuth();
+
+  useEffect(() => {
+    if (sessionReady && user) router.replace("/dashboard");
+  }, [router, sessionReady, user]);
+
+  if (sessionReady && user) return null;
 
   const openNextScreen = () => {
     router.push("/auth");

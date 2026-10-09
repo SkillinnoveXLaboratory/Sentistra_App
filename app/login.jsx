@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/auth-context";
 import { submitAuthRequest } from "../src/auth-api";
+import { getGoogleFirebaseIdToken, signOutGoogle } from "../src/google-auth";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -23,7 +24,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const canSubmit = /\S+@\S+\.\S+/.test(email) && password.length > 0 && !loading;
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const canSubmit = /\S+@\S+\.\S+/.test(email) && password.length > 0 && !loading && !googleLoading;
 
   const login = async () => {
     setLoading(true);
@@ -34,11 +36,31 @@ export default function LoginScreen() {
         password,
       });
       await setSession(session);
+      router.dismissAll();
       router.replace("/dashboard");
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    if (loading || googleLoading) return;
+    setGoogleLoading(true);
+    setError("");
+    try {
+      const idToken = await getGoogleFirebaseIdToken();
+      if (!idToken) return;
+      const session = await submitAuthRequest("/google-sign-in", { idToken, mode: "login" });
+      await setSession(session);
+      router.dismissAll();
+      router.replace("/dashboard");
+    } catch (requestError) {
+      await signOutGoogle();
+      setError(requestError.message || "Unable to sign in with Google.");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -84,6 +106,9 @@ export default function LoginScreen() {
             onSubmitEditing={canSubmit ? login : undefined}
             style={styles.input}
           />
+          <Pressable style={styles.forgotLink} disabled={loading || googleLoading} onPress={() => router.push("/forgot-password")}>
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </Pressable>
           {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
           <Pressable
             style={[styles.button, !canSubmit && styles.buttonDisabled]}
@@ -91,6 +116,10 @@ export default function LoginScreen() {
             onPress={login}
           >
             {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Log in</Text>}
+          </Pressable>
+          <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
+          <Pressable style={[styles.googleButton, (loading || googleLoading) && styles.googleButtonDisabled]} disabled={loading || googleLoading} onPress={loginWithGoogle} accessibilityRole="button" accessibilityLabel="Continue with Google">
+            {googleLoading ? <ActivityIndicator color="#4285F4" /> : <Ionicons name="logo-google" size={18} color="#4285F4" />}<Text style={styles.googleButtonText}>{googleLoading ? "Connecting to Google..." : "Continue with Google"}</Text>
           </Pressable>
         </View>
         <Pressable style={styles.signupLink} onPress={() => router.replace("/auth")}>
@@ -112,10 +141,18 @@ const styles = StyleSheet.create({
   content: { paddingTop: 4 },
   label: { fontSize: 11, fontWeight: "500", color: "#333333", marginBottom: 6 },
   input: { width: "100%", height: 44, borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 8, paddingHorizontal: 12, fontSize: 12, color: "#111111", marginBottom: 16 },
+  forgotLink: { alignSelf: "flex-end", marginTop: -8, marginBottom: 18, paddingVertical: 4 },
+  forgotText: { color: "#6200EE", fontSize: 12, fontWeight: "700" },
   button: { height: 48, borderRadius: 10, backgroundColor: "#6200EE", alignItems: "center", justifyContent: "center" },
   buttonDisabled: { backgroundColor: "#B288EE" },
   buttonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
   error: { color: "#B42318", fontSize: 12, marginBottom: 12 },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 18 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  dividerText: { color: "#8A94A6", fontSize: 12, textTransform: "lowercase" },
+  googleButton: { height: 48, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, backgroundColor: "#FFFFFF", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  googleButtonDisabled: { opacity: 0.65 },
+  googleButtonText: { color: "#222222", fontSize: 12, fontWeight: "600" },
   signupLink: { marginTop: "auto", marginBottom: 24, alignItems: "center", paddingVertical: 12 },
   signupText: { color: "#777777", fontSize: 12 },
   signupStrong: { color: "#6200EE", fontWeight: "700" },
