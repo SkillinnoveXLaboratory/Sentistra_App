@@ -34,7 +34,15 @@ jobs:
         run: npm ci
 
       - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install --non-interactive
+        env:
+          CI: "1"
+          NODE_ENV: production
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Verify generated launcher icon inputs
+        run: |
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp
 
       - name: Restore release signing key
         env:
@@ -46,6 +54,7 @@ jobs:
       - name: Build signed release APK
         working-directory: android
         env:
+          NODE_ENV: production
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -65,7 +74,7 @@ jobs:
       - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sentistra-v1.0.0-release-apk
+          name: Sentistra-v1.0.2-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30

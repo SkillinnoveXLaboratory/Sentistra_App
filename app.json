@@ -2,9 +2,9 @@
   "expo": {
     "name": "Sentistra",
     "slug": "Sentistra",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/Launch_Logo_app.png",
+    "icon": "./assets/images/android-app-icon.png",
     "scheme": "sentistra",
     "userInterfaceStyle": "automatic",
     "androidStatusBar": {
@@ -18,7 +18,8 @@
     },
     "android": {
       "package": "com.sentistra.app",
-      "versionCode": 2,
+      "versionCode": 3,
+      "icon": "./assets/images/android-app-icon.png",
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
