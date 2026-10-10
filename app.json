@@ -2,9 +2,9 @@
   "expo": {
     "name": "Sentistra",
     "slug": "Sentistra",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
-    "icon": "./assets/images/android-app-icon.png",
+    "icon": "./assets/images/Launch_Logo_app.png",
     "scheme": "sentistra",
     "userInterfaceStyle": "automatic",
     "androidStatusBar": {
@@ -18,12 +18,12 @@
     },
     "android": {
       "package": "com.sentistra.app",
-      "versionCode": 3,
-      "icon": "./assets/images/android-app-icon.png",
+      "versionCode": 4,
+      "icon": "./assets/images/Launch_Logo_app.png",
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/android-launch-logo-adaptive.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": false,
