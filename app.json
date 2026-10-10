@@ -21,7 +21,8 @@
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/Launch_Logo_app.png"
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false
