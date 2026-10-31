@@ -32,7 +32,7 @@ import { useAuth } from "../src/auth-context";
 import { submitHumanizeRequest } from "../src/humanize-api";
 import { cancelDocumentHumanize, getDocumentHumanizeStatus, getStoredDocuments, saveDocumentToDevice, submitDocumentHumanize } from "../src/document-humanize-api";
 import { cancelDocumentDetection, detectDocument, detectText, getDocumentDetectionStatus } from "../src/ai-detector-api";
-import { getSubscriptionPlan, getSubscriptionStatus } from "../src/subscription-api";
+import { getSubscriptionPlans, getSubscriptionStatus } from "../src/subscription-api";
 import { beginCashfreeUpgrade, clearCashfreeCallback } from "../src/payment-api";
 import { updateMyAccount } from "../src/account-api";
 
@@ -95,17 +95,42 @@ function DashboardSubpageHeader({ title, subtitle, onBack }) {
   return <><Pressable style={styles.subpageBackButton} onPress={onBack} accessibilityLabel="Go back"><Ionicons name="arrow-back" size={18} color={COLORS.purple} /><Text style={styles.subpageBackText}>Back</Text></Pressable><PageHeading title={title} subtitle={subtitle} /></>;
 }
 
-function SubscriptionPage({ checkoutProcessing, errorMessage, onBack, onClaim, plan }) {
+function formatInr(value) {
+  const amount = Number(value) || 0;
+  return "INR " + amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+function SubscriptionPage({ checkoutProcessing, errorMessage, onBack, onClaim, onSelectPlan, plans, selectedPlanKey }) {
+  const plan = plans?.find((item) => item.planKey === selectedPlanKey) || plans?.[0];
   return <ScrollView style={styles.mainScroll} contentContainerStyle={styles.subpageContent} showsVerticalScrollIndicator={false}>
     <DashboardSubpageHeader title="Upgrade Sentistra" subtitle="Unlock the complete research workspace." onBack={onBack} />
-    {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : !plan ? <Text style={styles.documentProgressText}>Loading your plan...</Text> : <View style={styles.subscriptionCard}>
-      <View style={styles.subscriptionNameRow}><Text style={styles.subscriptionName}>{plan.name}</Text><Text style={styles.subscriptionBadge}>LIMITED TIME</Text></View>
-      <Text style={styles.subscriptionTitle}>{plan.title}</Text><Text style={styles.subscriptionDescription}>{plan.description}</Text>
-      <View style={styles.subscriptionPriceRow}><Text style={styles.subscriptionOldPrice}>INR {plan.originalPrice}</Text><Text style={styles.subscriptionPrice}>INR {plan.price}</Text><Text style={styles.subscriptionInterval}>/ {plan.interval}</Text></View>
-      <Pressable style={[styles.subscriptionClaim, checkoutProcessing && styles.subscriptionClaimDisabled]} disabled={checkoutProcessing} onPress={onClaim}><Ionicons name="sparkles" size={16} color="#DDD6FE" /><Text style={styles.subscriptionClaimText}>{checkoutProcessing ? "Opening checkout..." : "Claim offer"}</Text></Pressable>
-      {plan.features.map((feature) => <View key={feature} style={styles.subscriptionFeature}><Ionicons name="checkmark-circle" size={20} color={COLORS.purple} /><Text style={styles.subscriptionFeatureText}>{feature}</Text></View>)}
-      {!!plan.promoText && <Text style={styles.subscriptionPromo}>{plan.promoText}</Text>}
-    </View>}
+    {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+    {!plans ? (!errorMessage && <Text style={styles.documentProgressText}>Loading plans...</Text>) : <>
+      <View style={styles.planOptions} accessibilityRole="radiogroup">
+        {plans.map((item) => {
+          const selected = item.planKey === plan?.planKey;
+          return <Pressable key={item.planKey} style={[styles.planOption, selected && styles.planOptionSelected]} onPress={() => onSelectPlan(item.planKey)} disabled={checkoutProcessing} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${item.label} for ${formatInr(item.price)}`}>
+            <Ionicons name={selected ? "radio-button-on" : "radio-button-off"} size={20} color={selected ? COLORS.purple : COLORS.muted} />
+            <View style={styles.planOptionCopy}>
+              <Text style={styles.planOptionLabel}>{item.label}</Text>
+              {item.durationDays > 30 && <Text style={styles.planOptionMonthly}>{formatInr(item.monthlyPrice)} / month</Text>}
+            </View>
+            <View style={styles.planOptionPrices}>
+              {Number(item.originalPrice) > Number(item.price) && <Text style={styles.planOptionOldPrice}>{formatInr(item.originalPrice)}</Text>}
+              <Text style={styles.planOptionPrice}>{formatInr(item.price)}</Text>
+            </View>
+          </Pressable>;
+        })}
+      </View>
+      {!!plan && <View style={styles.subscriptionCard}>
+        <View style={styles.subscriptionNameRow}><Text style={styles.subscriptionName}>{plan.name}</Text><Text style={styles.subscriptionBadge}>LIMITED TIME</Text></View>
+        <Text style={styles.subscriptionTitle}>{plan.title}</Text><Text style={styles.subscriptionDescription}>{plan.description}</Text>
+        <View style={styles.subscriptionPriceRow}>{Number(plan.originalPrice) > Number(plan.price) && <Text style={styles.subscriptionOldPrice}>{formatInr(plan.originalPrice)}</Text>}<Text style={styles.subscriptionPrice}>{formatInr(plan.price)}</Text><Text style={styles.subscriptionInterval}>/ {plan.label}</Text></View>
+        <Pressable style={[styles.subscriptionClaim, checkoutProcessing && styles.subscriptionClaimDisabled]} disabled={checkoutProcessing} onPress={() => onClaim(plan.planKey)}><Ionicons name="sparkles" size={16} color="#DDD6FE" /><Text style={styles.subscriptionClaimText}>{checkoutProcessing ? "Opening checkout..." : `Get ${plan.label}`}</Text></Pressable>
+        {plan.features.map((feature) => <View key={feature} style={styles.subscriptionFeature}><Ionicons name="checkmark-circle" size={20} color={COLORS.purple} /><Text style={styles.subscriptionFeatureText}>{feature}</Text></View>)}
+        {!!plan.promoText && <Text style={styles.subscriptionPromo}>{plan.promoText}</Text>}
+      </View>}
+    </>}
   </ScrollView>;
 }
 
@@ -116,7 +141,7 @@ function BillingPage({ billingError, billingLoading, billingStatus, onBack }) {
       const cycle = billingStatus.billing_cycle;
       const progress = Math.max(0, Math.min(100, Number(cycle.progress_percent) || 0));
       return <View style={styles.billingCycleCard}>
-        <View style={styles.billingCycleHeader}><View><Text style={styles.billingEyebrow}>PAID PLAN</Text><Text style={styles.billingStatus}>{cycle.status === "active" ? "Current billing cycle" : "Previous billing cycle"}</Text></View><View style={[styles.billingStatusBadge, cycle.status !== "active" && styles.billingStatusBadgeExpired]}><Text style={[styles.billingStatusBadgeText, cycle.status !== "active" && styles.billingStatusBadgeTextExpired]}>{cycle.status === "active" ? "ACTIVE" : "ENDED"}</Text></View></View>
+        <View style={styles.billingCycleHeader}><View><Text style={styles.billingEyebrow}>{cycle.plan_name ? cycle.plan_name.toUpperCase() : "PAID PLAN"}</Text><Text style={styles.billingStatus}>{cycle.status === "active" ? "Current billing cycle" : "Previous billing cycle"}</Text></View><View style={[styles.billingStatusBadge, cycle.status !== "active" && styles.billingStatusBadgeExpired]}><Text style={[styles.billingStatusBadgeText, cycle.status !== "active" && styles.billingStatusBadgeTextExpired]}>{cycle.status === "active" ? "ACTIVE" : "ENDED"}</Text></View></View>
         <View style={styles.billingProgressTrack}><View style={[styles.billingProgressFill, { width: progress + "%" }]} /></View>
         <View style={styles.billingProgressLabels}><Text style={styles.billingProgressLabel}>{cycle.elapsed_days} of {cycle.duration_days} days used</Text><Text style={styles.billingProgressValue}>{progress}%</Text></View>
         <View style={styles.billingTimeline}><View style={styles.billingTimelineItem}><View style={styles.billingTimelineDot}><Ionicons name="calendar-outline" size={15} color={COLORS.purple} /></View><View style={styles.billingTimelineCopy}><Text style={styles.billingTimelineLabel}>Payment start</Text><Text style={styles.billingTimelineDate}>{formatBillingDate(cycle.started_at)}</Text></View></View><View style={styles.billingTimelineLine} /><View style={styles.billingTimelineItem}><View style={[styles.billingTimelineDot, styles.billingTimelineDotEnd]}><Ionicons name="flag-outline" size={15} color="#FFFFFF" /></View><View style={styles.billingTimelineCopy}><Text style={styles.billingTimelineLabel}>Payment end</Text><Text style={styles.billingTimelineDate}>{formatBillingDate(cycle.ends_at)}</Text></View></View></View>
@@ -248,7 +273,7 @@ function ScoreGauge({ score }) {
     segmentColors = ["#00b074", "#00b074", "#00b074"];
   } else if (numericScore < 15) {
     segmentColors = ["#00b074", inactiveColor, inactiveColor];
-  } else if (numericScore > 20 && numericScore < 50) {
+  } else if (numericScore < 50) {
     segmentColors = ["#fa8c35", "#fa8c35", inactiveColor];
   } else if (numericScore >= 50) {
     segmentColors = ["#ef4343", "#ef4343", "#ef4343"];
@@ -281,7 +306,7 @@ function ScoreGauge({ score }) {
   );
 }
 
-function AIDetectorView({ detectorJob, setDetectorJob, userId, onSubscriptionRequired }) {
+function AIDetectorView({ detectorJob, setDetectorJob, userId, onSubscriptionRequired, onUsageChanged }) {
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -299,6 +324,7 @@ function AIDetectorView({ detectorJob, setDetectorJob, userId, onSubscriptionReq
     setLoading(true);
     try {
       showResult(await detectText(text));
+      onUsageChanged();
     } catch (error) {
       setErrorMessage(error.message || "Unable to detect AI text.");
       if (/free tier has ended|SUBSCRIPTION_REQUIRED/i.test(error.message || "")) onSubscriptionRequired();
@@ -323,6 +349,7 @@ function AIDetectorView({ detectorJob, setDetectorJob, userId, onSubscriptionReq
     try {
       const queuedJob = await detectDocument(selection.result);
       setDetectorJob(queuedJob);
+      onUsageChanged();
       await AsyncStorage.setItem(activeDetectorStorageKey(userId), queuedJob.job_id);
     } catch (error) {
       setErrorMessage(error.message || "Unable to analyze this document.");
@@ -437,7 +464,7 @@ function AIDetectorView({ detectorJob, setDetectorJob, userId, onSubscriptionReq
   );
 }
 
-function DocumentHumanizerView({ documentFile, setDocumentFile, job, setJob, errorMessage, setErrorMessage, selectedModel, setSelectedModel, models, userId, onSubscriptionRequired }) {
+function DocumentHumanizerView({ documentFile, setDocumentFile, job, setJob, errorMessage, setErrorMessage, selectedModel, setSelectedModel, models, userId, onSubscriptionRequired, onUsageChanged }) {
   const [cancelling, setCancelling] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const processing = job?.status === "queued" || job?.status === "processing";
@@ -464,6 +491,7 @@ function DocumentHumanizerView({ documentFile, setDocumentFile, job, setJob, err
     try {
       const queuedJob = await submitDocumentHumanize(documentFile, selectedModel);
       setJob(queuedJob);
+      onUsageChanged();
       await AsyncStorage.setItem(activeDocumentStorageKey(userId), queuedJob.job_id);
     } catch (error) {
       setErrorMessage(error.message || "Unable to upload this document.");
@@ -589,7 +617,7 @@ function DocumentHumanizerView({ documentFile, setDocumentFile, job, setJob, err
   );
 }
 
-function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocumentJob, documentError, setDocumentError, userId, onSubscriptionRequired }) {
+function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocumentJob, documentError, setDocumentError, userId, onSubscriptionRequired, onUsageChanged }) {
   const humanizerScrollRef = useRef(null);
   const [text, setText] = useState("");
   const [mode, setMode] = useState("text");
@@ -677,6 +705,7 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
         { text: "Done.", status: "complete" },
       ]);
       setResult(response);
+      onUsageChanged();
       setTimeout(() => {
         setProcessSteps([]);
         setProcessing(false);
@@ -725,7 +754,7 @@ function HumanizerView({ documentFile, setDocumentFile, documentJob, setDocument
         <Pressable style={[styles.modeOption, displayedMode === "text" && styles.modeOptionActive]} onPress={() => setMode("text")} accessibilityRole="button"><Text style={[styles.modeOptionText, displayedMode === "text" && styles.modeOptionTextActive]}>Text Humanize</Text></Pressable>
         <Pressable style={[styles.modeOption, displayedMode === "document" && styles.modeOptionActive]} onPress={() => setMode("document")} accessibilityRole="button"><Text style={[styles.modeOptionText, displayedMode === "document" && styles.modeOptionTextActive]}>Document Humanize</Text></Pressable>
       </View>
-      {displayedMode === "document" ? <DocumentHumanizerView documentFile={documentFile} setDocumentFile={setDocumentFile} job={documentJob} setJob={setDocumentJob} errorMessage={documentError} setErrorMessage={setDocumentError} selectedModel={selectedModel} setSelectedModel={setSelectedModel} models={models} userId={userId} onSubscriptionRequired={onSubscriptionRequired} /> : <>
+      {displayedMode === "document" ? <DocumentHumanizerView documentFile={documentFile} setDocumentFile={setDocumentFile} job={documentJob} setJob={setDocumentJob} errorMessage={documentError} setErrorMessage={setDocumentError} selectedModel={selectedModel} setSelectedModel={setSelectedModel} models={models} userId={userId} onSubscriptionRequired={onSubscriptionRequired} onUsageChanged={onUsageChanged} /> : <>
       <Animated.View style={[styles.humanizerBox, processing && styles.humanizerBoxProcessing, { borderColor, shadowOpacity }]}>
         <TextInput
           value={text}
@@ -902,7 +931,8 @@ export default function DashboardScreen() {
   const [documentJob, setDocumentJob] = useState(null);
   const [documentError, setDocumentError] = useState("");
   const [detectorJob, setDetectorJob] = useState(null);
-  const [subscriptionPlan, setSubscriptionPlan] = useState(null);
+  const [subscriptionPlans, setSubscriptionPlans] = useState(null);
+  const [selectedPlanKey, setSelectedPlanKey] = useState("monthly");
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState("");
   const [checkoutProcessing, setCheckoutProcessing] = useState(false);
@@ -1018,15 +1048,20 @@ export default function DashboardScreen() {
   const openSubscription = async () => {
     setSubscriptionOpen(true);
     setSubscriptionError("");
-    try { setSubscriptionPlan(await getSubscriptionPlan()); }
+    try {
+      const plans = await getSubscriptionPlans();
+      setSubscriptionPlans(plans);
+      setSelectedPlanKey((current) => plans.some((plan) => plan.planKey === current) ? current : plans[0]?.planKey);
+    }
     catch (error) { setSubscriptionError(error.message || "Unable to load plans."); }
   };
-  const claimSubscription = async () => {
+  const claimSubscription = async (planKey) => {
     if (checkoutProcessing) return;
     setCheckoutProcessing(true);
     setSubscriptionError("");
     try {
       await beginCashfreeUpgrade({
+        planKey,
         onVerified: (result) => {
           clearCashfreeCallback();
           setCheckoutProcessing(false);
@@ -1106,18 +1141,37 @@ export default function DashboardScreen() {
   }, [accountOpen, billingOpen, privacyOpen, subscriptionOpen]);
 
   useEffect(() => () => clearCashfreeCallback(), []);
+
+  // The server owns the free-use count; re-read it after a use is spent or given back.
+  const refreshBillingStatus = () => {
+    getSubscriptionStatus().then(setBillingStatus).catch(() => {});
+  };
+
+  // A failed or cancelled document job returns its free use on the server.
+  const documentJobStatus = documentJob?.status;
+  const detectorJobStatus = detectorJob?.status;
+  useEffect(() => {
+    if (["failed", "cancelled"].includes(documentJobStatus) || ["failed", "cancelled"].includes(detectorJobStatus)) {
+      getSubscriptionStatus().then(setBillingStatus).catch(() => {});
+    }
+  }, [documentJobStatus, detectorJobStatus]);
   const hasPaidPlan = billingStatus?.paid === true;
   const isOnFreeTier = !hasPaidPlan && (billingStatus ? billingStatus.tier === true : user?.tier === true);
+  const freeUsesRemaining = billingStatus?.free_uses_remaining ?? user?.freeUsesRemaining;
+  const freeUsesLimit = billingStatus?.free_uses_limit ?? user?.freeUsesLimit;
+  const freeTierMessage = typeof freeUsesRemaining === "number" && typeof freeUsesLimit === "number"
+    ? `${freeUsesRemaining} of ${freeUsesLimit} free uses left`
+    : "You are on the free tier";
   const requiresUpgrade = billingStatus?.paid === false && billingStatus?.tier === false;
   const renderView = () => {
-    if (subscriptionOpen) return <SubscriptionPage checkoutProcessing={checkoutProcessing} errorMessage={subscriptionError} onBack={() => setSubscriptionOpen(false)} onClaim={claimSubscription} plan={subscriptionPlan} />;
+    if (subscriptionOpen) return <SubscriptionPage checkoutProcessing={checkoutProcessing} errorMessage={subscriptionError} onBack={() => setSubscriptionOpen(false)} onClaim={claimSubscription} onSelectPlan={setSelectedPlanKey} plans={subscriptionPlans} selectedPlanKey={selectedPlanKey} />;
     if (billingOpen) return <BillingPage billingError={billingError} billingLoading={billingLoading} billingStatus={billingStatus} onBack={() => setBillingOpen(false)} />;
     if (accountOpen) return <AccountSettingsPage accountError={accountError} accountName={accountName} accountPhone={accountPhone} accountSaving={accountSaving} onBack={() => setAccountOpen(false)} onNameChange={setAccountName} onPhoneChange={setAccountPhone} onSave={saveAccountSettings} />;
     if (privacyOpen) return <PrivacyPolicyPage onBack={() => setPrivacyOpen(false)} />;
     if (activeView === "files") return <FilesView />;
-    if (activeView === "detector") return <AIDetectorView detectorJob={detectorJob} setDetectorJob={setDetectorJob} userId={user?.id} onSubscriptionRequired={openSubscription} />;
+    if (activeView === "detector") return <AIDetectorView detectorJob={detectorJob} setDetectorJob={setDetectorJob} userId={user?.id} onSubscriptionRequired={openSubscription} onUsageChanged={refreshBillingStatus} />;
     if (activeView === "profile") return <ProfileView user={user} onLogout={logout} onOpenAccount={openAccountSettings} onOpenBilling={openBilling} onOpenPrivacy={openPrivacyPolicy} />;
-    return <HumanizerView documentFile={documentFile} setDocumentFile={setDocumentFile} documentJob={documentJob} setDocumentJob={setDocumentJob} documentError={documentError} setDocumentError={setDocumentError} userId={user?.id} onSubscriptionRequired={openSubscription} />;
+    return <HumanizerView documentFile={documentFile} setDocumentFile={setDocumentFile} documentJob={documentJob} setDocumentJob={setDocumentJob} documentError={documentError} setDocumentError={setDocumentError} userId={user?.id} onSubscriptionRequired={openSubscription} onUsageChanged={refreshBillingStatus} />;
   };
 
   if (!fontsLoaded || !sessionReady || !user) return null;
@@ -1131,63 +1185,9 @@ export default function DashboardScreen() {
             {hasPaidPlan ? <MaterialCommunityIcons name="crown" size={17} color="#FFFFFF" /> : <Ionicons name="flash" size={15} color="#92400E" />}{!isSmallScreen && <Text style={[styles.upgradeText, hasPaidPlan && styles.plusText]}>{hasPaidPlan ? "Plus" : "Upgrade"}</Text>}
           </Pressable>
         </View>
-        {isOnFreeTier && <View style={styles.freeTierBanner} accessibilityRole="text"><View style={styles.statusBannerContent}><Ionicons name="time-outline" size={17} color="#92400E" /><Text style={styles.freeTierBannerText}>You are on a 4-day free tier</Text></View></View>}
-        {requiresUpgrade && <Pressable style={styles.upgradeRequiredBanner} onPress={openSubscription} accessibilityRole="button" accessibilityLabel="Upgrade to Sentistra Plus"><View style={styles.statusBannerContent}><Ionicons name="lock-closed-outline" size={17} color="#B42318" /><Text style={styles.upgradeRequiredBannerText}>Your free tier has ended. Upgrade to Plus to continue.</Text></View><Ionicons name="chevron-forward" size={18} color="#B42318" style={styles.statusBannerChevron} /></Pressable>}
+        {isOnFreeTier && <View style={styles.freeTierBanner} accessibilityRole="text"><View style={styles.statusBannerContent}><Ionicons name="time-outline" size={17} color="#92400E" /><Text style={styles.freeTierBannerText}>{freeTierMessage}</Text></View></View>}
+        {requiresUpgrade && <Pressable style={styles.upgradeRequiredBanner} onPress={openSubscription} accessibilityRole="button" accessibilityLabel="Upgrade to Sentistra Plus"><View style={styles.statusBannerContent}><Ionicons name="lock-closed-outline" size={17} color="#B42318" /><Text style={styles.upgradeRequiredBannerText}>You have used all your free uses. Upgrade to Plus to continue.</Text></View><Ionicons name="chevron-forward" size={18} color="#B42318" style={styles.statusBannerChevron} /></Pressable>}
         <View style={styles.content}>{renderView()}</View>
-        <Modal visible={false} animationType="slide" onRequestClose={() => setSubscriptionOpen(false)}>
-          <SafeAreaView style={styles.subscriptionScreen} edges={["top", "left", "right", "bottom"]}>
-            <View style={styles.subscriptionHeader}><Pressable style={styles.billingCloseButton} onPress={() => setSubscriptionOpen(false)} accessibilityLabel="Close subscription"><Ionicons name="arrow-back" size={22} color={COLORS.dark} /></Pressable><Text style={styles.subscriptionHeading}>Upgrade Sentistra</Text><View style={styles.billingHeaderSpacer} /></View>
-            <ScrollView style={styles.fullScreenScroll} contentContainerStyle={styles.subscriptionContent} showsVerticalScrollIndicator={false}>
-            {subscriptionError ? <Text style={styles.errorText}>{subscriptionError}</Text> : !subscriptionPlan ? <Text style={styles.documentProgressText}>Loading your plan...</Text> : <View style={styles.subscriptionCard}>
-              <View style={styles.subscriptionNameRow}><Text style={styles.subscriptionName}>{subscriptionPlan.name}</Text><Text style={styles.subscriptionBadge}>LIMITED TIME</Text></View>
-              <Text style={styles.subscriptionTitle}>{subscriptionPlan.title}</Text><Text style={styles.subscriptionDescription}>{subscriptionPlan.description}</Text>
-              <View style={styles.subscriptionPriceRow}><Text style={styles.subscriptionOldPrice}>₹{subscriptionPlan.originalPrice}</Text><Text style={styles.subscriptionPrice}>₹{subscriptionPlan.price}</Text><Text style={styles.subscriptionInterval}>/ {subscriptionPlan.interval}</Text></View>
-              <Pressable style={[styles.subscriptionClaim, checkoutProcessing && styles.subscriptionClaimDisabled]} disabled={checkoutProcessing} onPress={claimSubscription}><Ionicons name="sparkles" size={16} color="#DDD6FE" /><Text style={styles.subscriptionClaimText}>{checkoutProcessing ? "Opening checkout..." : "Claim offer"}</Text></Pressable>
-              {subscriptionPlan.features.map((feature) => <View key={feature} style={styles.subscriptionFeature}><Ionicons name="checkmark-circle" size={20} color={COLORS.purple} /><Text style={styles.subscriptionFeatureText}>{feature}</Text></View>)}
-              {!!subscriptionPlan.promoText && <Text style={styles.subscriptionPromo}>{subscriptionPlan.promoText}</Text>}
-            </View>}
-            </ScrollView>
-            <BottomNavigation activeView={activeView} onNavigate={navigateToDashboardView} />
-          </SafeAreaView>
-        </Modal>
-        <Modal visible={false} animationType="slide" onRequestClose={() => setBillingOpen(false)}>
-          <SafeAreaView style={styles.billingScreen} edges={["top", "left", "right", "bottom"]}>
-            <View style={styles.billingHeader}><Pressable style={styles.billingCloseButton} onPress={() => setBillingOpen(false)} accessibilityLabel="Close billing"><Ionicons name="arrow-back" size={22} color={COLORS.dark} /></Pressable><Text style={styles.billingPageTitle}>Usage & Billing</Text><View style={styles.billingHeaderSpacer} /></View>
-            <ScrollView style={styles.fullScreenScroll} contentContainerStyle={styles.billingContent} showsVerticalScrollIndicator={false}>
-            {billingLoading ? <BillingCycleSkeleton /> : billingError ? <Text style={styles.errorText}>{billingError}</Text> : billingStatus?.billing_cycle ? (() => {
-              const cycle = billingStatus.billing_cycle;
-              const progress = Math.max(0, Math.min(100, Number(cycle.progress_percent) || 0));
-              return <View style={styles.billingCycleCard}>
-                <View style={styles.billingCycleHeader}><View><Text style={styles.billingEyebrow}>PAID PLAN</Text><Text style={styles.billingStatus}>{cycle.status === "active" ? "Current billing cycle" : "Previous billing cycle"}</Text></View><View style={[styles.billingStatusBadge, cycle.status !== "active" && styles.billingStatusBadgeExpired]}><Text style={[styles.billingStatusBadgeText, cycle.status !== "active" && styles.billingStatusBadgeTextExpired]}>{cycle.status === "active" ? "ACTIVE" : "ENDED"}</Text></View></View>
-                <View style={styles.billingProgressTrack}><View style={[styles.billingProgressFill, { width: progress + "%" }]} /></View>
-                <View style={styles.billingProgressLabels}><Text style={styles.billingProgressLabel}>{cycle.elapsed_days} of {cycle.duration_days} days used</Text><Text style={styles.billingProgressValue}>{progress}%</Text></View>
-                <View style={styles.billingTimeline}><View style={styles.billingTimelineItem}><View style={styles.billingTimelineDot}><Ionicons name="calendar-outline" size={15} color={COLORS.purple} /></View><View style={styles.billingTimelineCopy}><Text style={styles.billingTimelineLabel}>Payment start</Text><Text style={styles.billingTimelineDate}>{formatBillingDate(cycle.started_at)}</Text></View></View><View style={styles.billingTimelineLine} /><View style={styles.billingTimelineItem}><View style={[styles.billingTimelineDot, styles.billingTimelineDotEnd]}><Ionicons name="flag-outline" size={15} color="#FFFFFF" /></View><View style={styles.billingTimelineCopy}><Text style={styles.billingTimelineLabel}>Payment end</Text><Text style={styles.billingTimelineDate}>{formatBillingDate(cycle.ends_at)}</Text></View></View></View>
-                <Text style={styles.billingSupportText}>{cycle.status === "active" ? cycle.remaining_days + " day(s) remaining in this cycle." : "This billing cycle has ended. Upgrade again to begin a new cycle."}</Text>
-              </View>;
-            })() : <View style={styles.billingEmpty}><Ionicons name="card-outline" size={28} color={COLORS.purple} /><Text style={styles.billingEmptyTitle}>No paid billing cycle</Text><Text style={styles.billingEmptyText}>Your payment timeline will appear here after a verified plan upgrade.</Text></View>}
-            </ScrollView>
-            <BottomNavigation activeView={activeView} onNavigate={navigateToDashboardView} />
-          </SafeAreaView>
-        </Modal>
-        <Modal visible={false} animationType="slide" onRequestClose={() => setAccountOpen(false)}>
-          <SafeAreaView style={styles.billingScreen} edges={["top", "left", "right", "bottom"]}>
-            <View style={styles.billingHeader}><Pressable style={styles.billingCloseButton} onPress={() => setAccountOpen(false)} accessibilityLabel="Close account settings"><Ionicons name="arrow-back" size={22} color={COLORS.dark} /></Pressable><Text style={styles.billingPageTitle}>Account Settings</Text><View style={styles.billingHeaderSpacer} /></View>
-            <ScrollView style={styles.fullScreenScroll} contentContainerStyle={styles.accountContent} keyboardShouldPersistTaps="handled">
-              <View style={styles.accountSettingsCard}>
-                <View style={styles.accountSettingsIcon}><Ionicons name="person-outline" size={25} color={COLORS.purple} /></View>
-                <Text style={styles.accountSettingsTitle}>Your details</Text>
-                <Text style={styles.accountSettingsText}>Keep your name and phone number up to date for account and payment support.</Text>
-                <Text style={styles.accountLabel}>FULL NAME</Text>
-                <TextInput value={accountName} onChangeText={setAccountName} style={styles.accountInput} autoCapitalize="words" autoCorrect={false} maxLength={80} placeholder="Your full name" placeholderTextColor="#9CA3AF" />
-                <Text style={styles.accountLabel}>PHONE NUMBER</Text>
-                <TextInput value={accountPhone} onChangeText={setAccountPhone} style={styles.accountInput} keyboardType="phone-pad" maxLength={16} placeholder="Your phone number" placeholderTextColor="#9CA3AF" />
-                {!!accountError && <Text style={styles.accountError}>{accountError}</Text>}
-                <Pressable style={[styles.accountSaveButton, accountSaving && styles.accountSaveButtonDisabled]} disabled={accountSaving} onPress={saveAccountSettings}><Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" /><Text style={styles.accountSaveText}>{accountSaving ? "Saving changes..." : "Save changes"}</Text></Pressable>
-              </View>
-            </ScrollView>
-            <BottomNavigation activeView={activeView} onNavigate={navigateToDashboardView} />
-          </SafeAreaView>
-        </Modal>
         <BottomNavigation activeView={activeView} onNavigate={navigateToDashboardView} />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1231,6 +1231,15 @@ const styles = StyleSheet.create({
   subscriptionClaimText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   subscriptionFeature: { marginTop: 16, flexDirection: "row", alignItems: "flex-start", gap: 10 },
   subscriptionFeatureText: { flex: 1, color: "#1F2937", fontSize: 13, lineHeight: 19, fontWeight: "600" },
+  planOptions: { gap: 10, marginBottom: 16 },
+  planOption: { minHeight: 64, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 16, backgroundColor: COLORS.surface, flexDirection: "row", alignItems: "center", gap: 12 },
+  planOptionSelected: { borderColor: COLORS.purple, backgroundColor: COLORS.purpleLight },
+  planOptionCopy: { flex: 1 },
+  planOptionLabel: { color: COLORS.dark, fontSize: 15, fontWeight: "800" },
+  planOptionMonthly: { marginTop: 2, color: COLORS.muted, fontSize: 12, fontWeight: "600" },
+  planOptionPrices: { alignItems: "flex-end" },
+  planOptionOldPrice: { color: "#9CA3AF", fontSize: 12, fontWeight: "600", textDecorationLine: "line-through" },
+  planOptionPrice: { color: COLORS.dark, fontSize: 16, fontWeight: "800" },
   subscriptionPromo: { marginTop: 18, color: "#6B7280", fontSize: 11, lineHeight: 16 },
   billingScreen: { flex: 1, backgroundColor: COLORS.background },
   fullScreenScroll: { flex: 1 },

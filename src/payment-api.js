@@ -9,8 +9,13 @@ async function paymentRequest(path, options = {}) {
   return result;
 }
 
-export async function beginCashfreeUpgrade({ onVerified, onFailure }) {
-  const order = await paymentRequest("/payments/cashfree/order", { method: "POST" });
+export async function beginCashfreeUpgrade({ planKey, onVerified, onFailure }) {
+  // Only the plan key is sent; the server reads the price from its own database.
+  const order = await paymentRequest("/payments/cashfree/order", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ planKey }),
+  });
   const environment = order.environment === "production" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
   const session = new CFSession(order.payment_session_id, order.order_id, environment);
 
