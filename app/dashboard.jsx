@@ -34,7 +34,9 @@ import { cancelDocumentHumanize, getDocumentHumanizeStatus, getStoredDocuments, 
 import { cancelDocumentDetection, detectDocument, detectText, getDocumentDetectionStatus } from "../src/ai-detector-api";
 import { getSubscriptionPlans, getSubscriptionStatus } from "../src/subscription-api";
 import { beginCashfreeUpgrade, clearCashfreeCallback } from "../src/payment-api";
-import { updateMyAccount } from "../src/account-api";
+import { pickAndUploadProfilePhoto, removeProfilePhoto, updateMyAccount } from "../src/account-api";
+import { getMyReports, submitProblemReport } from "../src/report-api";
+import { apiUrl, getAccessToken } from "../src/api-client";
 
 const COLORS = {
   background: "#F9FAFB",
@@ -151,11 +153,48 @@ function BillingPage({ billingError, billingLoading, billingStatus, onBack }) {
   </ScrollView>;
 }
 
-function AccountSettingsPage({ accountError, accountName, accountPhone, accountSaving, onBack, onNameChange, onPhoneChange, onSave }) {
+// The photo endpoint needs the session token, so the image request carries it as a header.
+// `photoVersion` changes with every upload, which also busts the image cache.
+function ProfilePhotoImage({ photoVersion, size }) {
+  const [token, setToken] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    getAccessToken().then((value) => { if (mounted) setToken(value); }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+  if (!photoVersion || !token || failed) return <Ionicons name="person-outline" size={Math.round(size * 0.4)} color={COLORS.purple} />;
+  return <Image
+    source={{ uri: apiUrl(`/account/photo?v=${encodeURIComponent(photoVersion)}`), headers: { Authorization: `Bearer ${token}` } }}
+    style={{ width: size, height: size, borderRadius: size / 2 }}
+    onError={() => setFailed(true)}
+    accessibilityLabel="Profile photo"
+  />;
+}
+
+function ProfilePhoto({ photoVersion, size }) {
+  // Keyed by version so a new photo gets a fresh load (and a fresh retry after an error).
+  return <ProfilePhotoImage key={photoVersion || "none"} photoVersion={photoVersion} size={size} />;
+}
+
+function AccountSettingsPage({ accountError, accountName, accountPhone, accountSaving, photoBusy, photoVersion, onBack, onChangePhoto, onNameChange, onPhoneChange, onRemovePhoto, onSave }) {
   return <ScrollView style={styles.mainScroll} contentContainerStyle={styles.subpageContent} keyboardShouldPersistTaps="handled">
     <DashboardSubpageHeader title="Account Settings" subtitle="Manage your account details securely." onBack={onBack} />
     <View style={styles.accountSettingsCard}>
-      <View style={styles.accountSettingsIcon}><Ionicons name="person-outline" size={25} color={COLORS.purple} /></View>
+      <View style={styles.photoEditor}>
+        <Pressable style={styles.photoEditorAvatar} onPress={onChangePhoto} disabled={photoBusy} accessibilityRole="button" accessibilityLabel="Change profile photo">
+          <ProfilePhoto photoVersion={photoVersion} size={84} />
+          <View style={styles.photoEditorBadge}><Ionicons name={photoBusy ? "hourglass-outline" : "camera"} size={14} color="#FFFFFF" /></View>
+        </Pressable>
+        <View style={styles.photoEditorActions}>
+          <Text style={styles.photoEditorTitle}>Profile photo</Text>
+          <Text style={styles.photoEditorHint}>{photoBusy ? "Updating your photo..." : "JPEG, PNG or WebP. It is cropped to a square."}</Text>
+          <View style={styles.photoEditorButtons}>
+            <Pressable style={[styles.photoButton, photoBusy && styles.accountSaveButtonDisabled]} onPress={onChangePhoto} disabled={photoBusy}><Text style={styles.photoButtonText}>{photoVersion ? "Change photo" : "Add photo"}</Text></Pressable>
+            {!!photoVersion && <Pressable style={[styles.photoButton, styles.photoRemoveButton, photoBusy && styles.accountSaveButtonDisabled]} onPress={onRemovePhoto} disabled={photoBusy}><Text style={[styles.photoButtonText, styles.photoRemoveText]}>Remove</Text></Pressable>}
+          </View>
+        </View>
+      </View>
       <Text style={styles.accountSettingsTitle}>Your details</Text>
       <Text style={styles.accountSettingsText}>Keep your name and phone number up to date for account and payment support.</Text>
       <Text style={styles.accountLabel}>FULL NAME</Text>
@@ -169,13 +208,13 @@ function AccountSettingsPage({ accountError, accountName, accountPhone, accountS
 }
 
 const PRIVACY_SECTIONS = [
-  ["1. Information We Collect", "We collect account information you provide, such as your name, email address, phone number, and referral details. We also retain subscription, transaction, and support records needed to operate your account and meet legal obligations."],
+  ["1. Information We Collect", "We collect account information you provide, such as your name, email address, phone number, optional profile photo, and referral details. We also retain subscription, transaction, and support records, including problem reports you send from the app, needed to operate your account and meet legal obligations."],
   ["2. Text, Documents, and AI Processing", "Sentistra processes the text and DOCX files you submit only to provide humanization, AI detection, and report features. Uploaded documents and generated files are stored in a private workspace associated with your account and are automatically removed after the service retention period, normally within 24 hours."],
   ["3. How We Use Information", "We use your information to authenticate you, deliver requested AI features, maintain your workspace, provide support, protect the platform from misuse, improve reliability, and communicate important account or service updates."],
   ["4. Payments and Subscriptions", "Payments are processed through Cashfree. Sentistra does not store your complete card, UPI, or banking credentials. We retain only the payment and order details required to confirm a subscription, show billing history, prevent duplicate transactions, and provide support."],
   ["5. Sharing and Service Providers", "We do not sell your personal information. We share only the minimum necessary information with trusted providers that help us operate the service, including hosting, authentication, email delivery, payment processing, and AI infrastructure. Providers must handle information only for their authorized service."],
   ["6. Security", "We use authenticated access controls, private account workspaces, encrypted connections where available, server-side authorization checks, and restricted service credentials. No online system is completely secure, so please protect your password and contact us promptly if you suspect unauthorized activity."],
-  ["7. Your Choices", "You may update your name and phone number in Account Settings. You can download files made available in your workspace and may request help with account or data questions through Sentistra Support. Subscription access is governed by the plan and billing information shown in the app."],
+  ["7. Your Choices", "You may update your name, phone number, and profile photo, or remove your photo, in Account Settings. You can download files made available in your workspace and may request help with account or data questions through Sentistra Support. Subscription access is governed by the plan and billing information shown in the app."],
   ["8. Responsible Use", "AI-generated results are research and writing-support tools. You are responsible for reviewing output for accuracy, originality, citations, privacy, and compliance before relying on it. Do not submit unlawful, harmful, confidential, or third-party content unless you have the right to process it."],
   ["9. Children", "Sentistra is not intended for children under the age required to consent to online services in their jurisdiction. If you believe a child has provided personal information, contact us so we can review and remove it where appropriate."],
   ["10. Policy Updates and Contact", "We may update this policy as Sentistra develops or legal requirements change. Material changes will be reflected in the app or through account communications. For privacy questions, contact Sentistra Support at sentistra@skillinnovex.in."],
@@ -189,6 +228,123 @@ function PrivacyPolicyPage({ onBack }) {
       <Text style={styles.privacyLead}>This policy explains how Sentistra collects, uses, protects, and retains information when you use our writing, document, AI-detection, and subscription services.</Text>
       {PRIVACY_SECTIONS.map(([title, body]) => <View key={title} style={styles.privacySection}><Text style={styles.privacySectionTitle}>{title}</Text><Text style={styles.privacySectionText}>{body}</Text></View>)}
     </View>
+  </ScrollView>;
+}
+
+// Keys must match REPORT_CATEGORIES on the server.
+const REPORT_CATEGORIES = [
+  { key: "bug", label: "App bug", icon: "bug-outline" },
+  { key: "tools", label: "Humanizer / AI detector", icon: "sparkles-outline" },
+  { key: "payment", label: "Payment & plan", icon: "card-outline" },
+  { key: "account", label: "Account & login", icon: "person-outline" },
+  { key: "other", label: "Something else", icon: "help-circle-outline" },
+];
+const REPORT_STATUS = {
+  open: { label: "Received", color: "#92400E", background: "#FEF3C7" },
+  in_progress: { label: "In progress", color: "#1D4ED8", background: "#DBEAFE" },
+  resolved: { label: "Resolved", color: "#15803D", background: "#DCFCE7" },
+  closed: { label: "Closed", color: "#4B5563", background: "#F3F4F6" },
+};
+const REPORT_MIN_LENGTH = 10;
+const REPORT_MAX_LENGTH = 2000;
+
+function ReportProblemPage({ onBack }) {
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [reports, setReports] = useState(null);
+  const [listError, setListError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const descriptionLength = description.trim().length;
+
+  useEffect(() => {
+    let mounted = true;
+    getMyReports()
+      .then((items) => { if (mounted) setReports(items); })
+      .catch((error) => { if (mounted) setListError(error.message || "Unable to load your reports."); });
+    return () => { mounted = false; };
+  }, []);
+
+  const refreshReports = async () => {
+    setRefreshing(true);
+    try {
+      setReports(await getMyReports());
+      setListError("");
+    } catch (error) {
+      setListError(error.message || "Unable to load your reports.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const sendReport = async () => {
+    if (sending) return;
+    if (!category) { setFormError("Choose what the problem is about."); return; }
+    if (descriptionLength < REPORT_MIN_LENGTH) { setFormError(`Please describe the problem in at least ${REPORT_MIN_LENGTH} characters.`); return; }
+    Keyboard.dismiss();
+    setSending(true);
+    setFormError("");
+    try {
+      const report = await submitProblemReport({ category, description });
+      setReports((current) => [report, ...(current || []).filter((item) => item.id !== report.id)]);
+      setListError("");
+      setCategory("");
+      setDescription("");
+      Alert.alert("Report sent", `We received your report ${report.ticket}. You can follow its status below.`);
+    } catch (error) {
+      setFormError(error.message || "Unable to send your report.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return <ScrollView style={styles.mainScroll} contentContainerStyle={styles.subpageContent} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshReports} tintColor={COLORS.purple} colors={[COLORS.purple]} />}>
+    <DashboardSubpageHeader title="Report a Problem" subtitle="Tell us what went wrong. Our team reviews every report." onBack={onBack} />
+    <View style={styles.accountSettingsCard}>
+      <Text style={styles.accountLabel}>WHAT IS IT ABOUT?</Text>
+      <View style={styles.reportCategories}>
+        {REPORT_CATEGORIES.map((item) => {
+          const selected = item.key === category;
+          return <Pressable key={item.key} style={[styles.reportCategory, selected && styles.reportCategorySelected]} onPress={() => { setCategory(item.key); setFormError(""); }} accessibilityRole="radio" accessibilityState={{ selected }}>
+            <Ionicons name={item.icon} size={15} color={selected ? COLORS.purple : COLORS.muted} />
+            <Text style={[styles.reportCategoryText, selected && styles.reportCategoryTextSelected]}>{item.label}</Text>
+          </Pressable>;
+        })}
+      </View>
+      <Text style={styles.accountLabel}>DESCRIBE THE PROBLEM</Text>
+      <TextInput
+        value={description}
+        onChangeText={(value) => { setDescription(value); if (formError) setFormError(""); }}
+        style={[styles.accountInput, styles.reportInput]}
+        multiline
+        textAlignVertical="top"
+        maxLength={REPORT_MAX_LENGTH}
+        placeholder="What happened? What did you expect? Which tool were you using?"
+        placeholderTextColor="#9CA3AF"
+      />
+      <Text style={styles.reportCounter}>{description.length}/{REPORT_MAX_LENGTH}</Text>
+      {!!formError && <Text style={styles.accountError}>{formError}</Text>}
+      <Pressable style={[styles.accountSaveButton, sending && styles.accountSaveButtonDisabled]} disabled={sending} onPress={sendReport}><Ionicons name="send-outline" size={18} color="#FFFFFF" /><Text style={styles.accountSaveText}>{sending ? "Sending..." : "Send report"}</Text></Pressable>
+    </View>
+
+    <Text style={styles.reportListTitle}>Your reports</Text>
+    {!!listError && <Text style={styles.accountError}>{listError}</Text>}
+    {reports === null && !listError && <Text style={styles.reportEmpty}>Loading your reports...</Text>}
+    {reports?.length === 0 && <Text style={styles.reportEmpty}>You have not reported any problems yet.</Text>}
+    {reports?.map((report) => {
+      const status = REPORT_STATUS[report.status] || REPORT_STATUS.open;
+      const categoryLabel = REPORT_CATEGORIES.find((item) => item.key === report.category)?.label || "Other";
+      return <View key={report.id} style={styles.reportCard}>
+        <View style={styles.reportCardHead}>
+          <Text style={styles.reportTicket}>{report.ticket}</Text>
+          <View style={[styles.reportStatus, { backgroundColor: status.background }]}><Text style={[styles.reportStatusText, { color: status.color }]}>{status.label}</Text></View>
+        </View>
+        <Text style={styles.reportMeta}>{categoryLabel} · {formatBillingDate(report.createdAt)}</Text>
+        <Text style={styles.reportDescription}>{report.description}</Text>
+        {!!report.adminReply && <View style={styles.reportReply}><Text style={styles.reportReplyLabel}>Reply from Sentistra support</Text><Text style={styles.reportReplyText}>{report.adminReply}</Text></View>}
+      </View>;
+    })}
   </ScrollView>;
 }
 
@@ -895,23 +1051,24 @@ function formatBillingDate(value) {
   return date.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function ProfileView({ user, onLogout, onOpenAccount, onOpenBilling, onOpenPrivacy }) {
+function ProfileView({ user, onLogout, onOpenAccount, onOpenBilling, onOpenPrivacy, onOpenReport }) {
   const settings = [
-    ["settings-outline", "Account Settings"],
-    ["pie-chart-outline", "Usage & Billing"],
-    ["shield-checkmark-outline", "Privacy & Security"],
+    ["settings-outline", "Account Settings", onOpenAccount],
+    ["pie-chart-outline", "Usage & Billing", onOpenBilling],
+    ["shield-checkmark-outline", "Privacy & Security", onOpenPrivacy],
+    ["flag-outline", "Report a Problem", onOpenReport],
   ];
 
   return (
     <ScrollView style={styles.mainScroll} contentContainerStyle={styles.viewContent}>
       <PageHeading title="Account" subtitle="Manage your Sentistra workspace." />
       <View style={styles.profileCard}>
-        <View style={styles.avatar}><Ionicons name="person-outline" size={32} color={COLORS.purple} /></View>
+        <Pressable style={styles.avatar} onPress={onOpenAccount} accessibilityRole="button" accessibilityLabel="Open account settings"><ProfilePhoto photoVersion={user?.photoVersion} size={80} /></Pressable>
         <Text style={styles.profileName}>{user?.name || "Sentistra member"}</Text>
         <Text style={styles.profilePlan}>{user?.email || "Free Researcher Plan"}</Text>
         <View style={styles.settingsList}>
-          {settings.map(([icon, label]) => (
-            <Pressable key={label} style={styles.settingRow} onPress={label === "Account Settings" ? onOpenAccount : label === "Usage & Billing" ? onOpenBilling : onOpenPrivacy}>
+          {settings.map(([icon, label, onPress]) => (
+            <Pressable key={label} style={styles.settingRow} onPress={onPress}>
               <Ionicons name={icon} size={19} color={COLORS.dark} /><Text style={styles.settingText}>{label}</Text><Ionicons name="chevron-forward" size={17} color={COLORS.muted} />
             </Pressable>
           ))}
@@ -942,6 +1099,8 @@ export default function DashboardScreen() {
   const [billingError, setBillingError] = useState("");
   const [accountOpen, setAccountOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [accountPhone, setAccountPhone] = useState("");
   const [accountSaving, setAccountSaving] = useState(false);
@@ -1103,6 +1262,43 @@ export default function DashboardScreen() {
   };
 
   const openPrivacyPolicy = () => setPrivacyOpen(true);
+  const openReportProblem = () => setReportOpen(true);
+
+  const changeProfilePhoto = async () => {
+    if (photoBusy) return;
+    setAccountError("");
+    setPhotoBusy(true);
+    try {
+      const updatedUser = await pickAndUploadProfilePhoto();
+      if (updatedUser) await updateStoredUser(updatedUser);
+    } catch (error) {
+      setAccountError(error.message || "Unable to update your profile photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const confirmRemoveProfilePhoto = () => {
+    if (photoBusy) return;
+    Alert.alert("Remove profile photo?", "Your photo will be deleted from Sentistra.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setAccountError("");
+          setPhotoBusy(true);
+          try {
+            await updateStoredUser(await removeProfilePhoto());
+          } catch (error) {
+            setAccountError(error.message || "Unable to remove your profile photo.");
+          } finally {
+            setPhotoBusy(false);
+          }
+        },
+      },
+    ]);
+  };
 
   const saveAccountSettings = async () => {
     if (accountSaving) return;
@@ -1125,6 +1321,7 @@ export default function DashboardScreen() {
     setBillingOpen(false);
     setAccountOpen(false);
     setPrivacyOpen(false);
+    setReportOpen(false);
     setActiveView(view);
   };
 
@@ -1134,11 +1331,12 @@ export default function DashboardScreen() {
       if (billingOpen) { setBillingOpen(false); return true; }
       if (accountOpen) { setAccountOpen(false); return true; }
       if (privacyOpen) { setPrivacyOpen(false); return true; }
+      if (reportOpen) { setReportOpen(false); return true; }
       return false;
     };
     const listener = BackHandler.addEventListener("hardwareBackPress", closeOpenSubpage);
     return () => listener.remove();
-  }, [accountOpen, billingOpen, privacyOpen, subscriptionOpen]);
+  }, [accountOpen, billingOpen, privacyOpen, reportOpen, subscriptionOpen]);
 
   useEffect(() => () => clearCashfreeCallback(), []);
 
@@ -1166,11 +1364,12 @@ export default function DashboardScreen() {
   const renderView = () => {
     if (subscriptionOpen) return <SubscriptionPage checkoutProcessing={checkoutProcessing} errorMessage={subscriptionError} onBack={() => setSubscriptionOpen(false)} onClaim={claimSubscription} onSelectPlan={setSelectedPlanKey} plans={subscriptionPlans} selectedPlanKey={selectedPlanKey} />;
     if (billingOpen) return <BillingPage billingError={billingError} billingLoading={billingLoading} billingStatus={billingStatus} onBack={() => setBillingOpen(false)} />;
-    if (accountOpen) return <AccountSettingsPage accountError={accountError} accountName={accountName} accountPhone={accountPhone} accountSaving={accountSaving} onBack={() => setAccountOpen(false)} onNameChange={setAccountName} onPhoneChange={setAccountPhone} onSave={saveAccountSettings} />;
+    if (accountOpen) return <AccountSettingsPage accountError={accountError} accountName={accountName} accountPhone={accountPhone} accountSaving={accountSaving} photoBusy={photoBusy} photoVersion={user?.photoVersion} onBack={() => setAccountOpen(false)} onChangePhoto={changeProfilePhoto} onNameChange={setAccountName} onPhoneChange={setAccountPhone} onRemovePhoto={confirmRemoveProfilePhoto} onSave={saveAccountSettings} />;
     if (privacyOpen) return <PrivacyPolicyPage onBack={() => setPrivacyOpen(false)} />;
+    if (reportOpen) return <ReportProblemPage onBack={() => setReportOpen(false)} />;
     if (activeView === "files") return <FilesView />;
     if (activeView === "detector") return <AIDetectorView detectorJob={detectorJob} setDetectorJob={setDetectorJob} userId={user?.id} onSubscriptionRequired={openSubscription} onUsageChanged={refreshBillingStatus} />;
-    if (activeView === "profile") return <ProfileView user={user} onLogout={logout} onOpenAccount={openAccountSettings} onOpenBilling={openBilling} onOpenPrivacy={openPrivacyPolicy} />;
+    if (activeView === "profile") return <ProfileView user={user} onLogout={logout} onOpenAccount={openAccountSettings} onOpenBilling={openBilling} onOpenPrivacy={openPrivacyPolicy} onOpenReport={openReportProblem} />;
     return <HumanizerView documentFile={documentFile} setDocumentFile={setDocumentFile} documentJob={documentJob} setDocumentJob={setDocumentJob} documentError={documentError} setDocumentError={setDocumentError} userId={user?.id} onSubscriptionRequired={openSubscription} onUsageChanged={refreshBillingStatus} />;
   };
 
@@ -1287,7 +1486,36 @@ const styles = StyleSheet.create({
   skeletonSupport: { width: "76%", height: 12, marginTop: 22 },
   accountContent: { flexGrow: 1, padding: 20, justifyContent: "center" },
   accountSettingsCard: { padding: 22, borderWidth: 1, borderColor: "#DDD6FE", borderRadius: 22, backgroundColor: COLORS.surface },
-  accountSettingsIcon: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  photoEditor: { flexDirection: "row", alignItems: "center", gap: 16, paddingBottom: 20, marginBottom: 2, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  photoEditorAvatar: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  photoEditorBadge: { position: "absolute", right: 0, bottom: 0, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purple },
+  photoEditorActions: { flex: 1 },
+  photoEditorTitle: { color: COLORS.dark, fontSize: 16, fontWeight: "800" },
+  photoEditorHint: { marginTop: 4, color: COLORS.muted, fontSize: 12, lineHeight: 17 },
+  photoEditorButtons: { marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  photoButton: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  photoButtonText: { color: COLORS.purple, fontSize: 13, fontWeight: "700" },
+  photoRemoveButton: { backgroundColor: "#FEF2F2" },
+  photoRemoveText: { color: "#B91C1C" },
+  reportCategories: { marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  reportCategory: { minHeight: 38, paddingHorizontal: 12, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 19, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: COLORS.surface },
+  reportCategorySelected: { borderColor: COLORS.purple, backgroundColor: COLORS.purpleLight },
+  reportCategoryText: { color: COLORS.dark, fontSize: 13, fontWeight: "600" },
+  reportCategoryTextSelected: { color: COLORS.purple },
+  reportInput: { minHeight: 140, paddingTop: 12, paddingBottom: 12, lineHeight: 21 },
+  reportCounter: { marginTop: 6, alignSelf: "flex-end", color: COLORS.muted, fontSize: 11 },
+  reportListTitle: { marginTop: 28, marginBottom: 12, color: COLORS.dark, fontSize: 18, fontWeight: "800" },
+  reportEmpty: { color: COLORS.muted, fontSize: 14, lineHeight: 20 },
+  reportCard: { marginBottom: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, backgroundColor: COLORS.surface },
+  reportCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  reportTicket: { color: COLORS.dark, fontSize: 14, fontWeight: "800", letterSpacing: 0.4 },
+  reportStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  reportStatusText: { fontSize: 12, fontWeight: "700" },
+  reportMeta: { marginTop: 4, color: COLORS.muted, fontSize: 12 },
+  reportDescription: { marginTop: 10, color: COLORS.dark, fontSize: 14, lineHeight: 21 },
+  reportReply: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: COLORS.purpleLight },
+  reportReplyLabel: { color: COLORS.purple, fontSize: 12, fontWeight: "800" },
+  reportReplyText: { marginTop: 4, color: COLORS.dark, fontSize: 14, lineHeight: 20 },
   accountSettingsTitle: { marginTop: 18, color: COLORS.dark, fontSize: 21, fontWeight: "800" },
   accountSettingsText: { marginTop: 7, color: COLORS.muted, fontSize: 13, lineHeight: 20 },
   accountLabel: { marginTop: 22, color: COLORS.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
@@ -1407,7 +1635,7 @@ const styles = StyleSheet.create({
   fileName: { color: COLORS.dark, fontSize: 14, lineHeight: 19, fontWeight: "500" },
   fileMeta: { marginTop: 4, color: COLORS.muted, fontSize: 11, lineHeight: 16 },
   profileCard: { width: "100%", padding: 26, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, alignItems: "center", backgroundColor: COLORS.surface },
-  avatar: { width: 80, height: 80, marginBottom: 15, borderRadius: 40, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
+  avatar: { width: 80, height: 80, marginBottom: 15, borderRadius: 40, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: COLORS.purpleLight },
   profileName: { color: COLORS.dark, fontSize: 22, fontWeight: "600", textAlign: "center" },
   profilePlan: { marginTop: 5, color: COLORS.muted, fontSize: 14, textAlign: "center" },
   settingsList: { width: "100%", marginTop: 22, borderTopWidth: 1, borderTopColor: COLORS.border },

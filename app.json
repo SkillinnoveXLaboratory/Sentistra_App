@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sentistra",
     "slug": "Sentistra",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/Launch_Logo_app.png",
     "scheme": "sentistra",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.sentistra.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "icon": "./assets/images/Launch_Logo_app.png",
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
@@ -50,7 +50,15 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sentistra uses your photo library only when you choose a profile photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "googleWebClientId": "764778624837-642cn1r08i2clu4h2jf9c12etdp67en0.apps.googleusercontent.com"
