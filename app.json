@@ -2,15 +2,13 @@
   "expo": {
     "name": "Sentistra",
     "slug": "Sentistra",
-    "version": "1.0.6",
-    "orientation": "portrait",
+    "version": "1.0.7",
+    "orientation": "default",
     "icon": "./assets/images/Launch_Logo_app.png",
     "scheme": "sentistra",
     "userInterfaceStyle": "automatic",
     "androidStatusBar": {
-      "backgroundColor": "#FFFFFF",
-      "barStyle": "dark-content",
-      "translucent": false
+      "barStyle": "dark-content"
     },
     "newArchEnabled": true,
     "ios": {
@@ -18,7 +16,7 @@
     },
     "android": {
       "package": "com.sentistra.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "icon": "./assets/images/Launch_Logo_app.png",
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
@@ -26,7 +24,6 @@
         "foregroundImage": "./assets/images/android-launch-logo-adaptive.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -57,6 +54,16 @@
           "photosPermission": "Sentistra uses your photo library only when you choose a profile photo.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# Cashfree checkout (SDK classes and its WebView JavaScript bridge)\n-keep class com.cashfree.pg.** { *; }\n-keep class com.reactnativecashfreepgsdk.** { *; }\n-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }\n-dontwarn com.cashfree.**"
+          }
         }
       ]
     ],

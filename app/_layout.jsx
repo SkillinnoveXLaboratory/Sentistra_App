@@ -35,7 +35,7 @@ export default function Layout() {
 
   return (
     <AuthProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} hidden={false} />
+      <StatusBar barStyle="dark-content" hidden={false} />
       {showLaunchScreen ? (
         <SentistraSplash onReady={hideNativeSplash} onComplete={() => setShowLaunchScreen(false)} />
       ) : (

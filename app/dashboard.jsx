@@ -34,9 +34,8 @@ import { cancelDocumentHumanize, getDocumentHumanizeStatus, getStoredDocuments, 
 import { cancelDocumentDetection, detectDocument, detectText, getDocumentDetectionStatus } from "../src/ai-detector-api";
 import { getSubscriptionPlans, getSubscriptionStatus } from "../src/subscription-api";
 import { beginCashfreeUpgrade, clearCashfreeCallback } from "../src/payment-api";
-import { pickAndUploadProfilePhoto, removeProfilePhoto, updateMyAccount } from "../src/account-api";
+import { getProfilePhotoUri, pickAndUploadProfilePhoto, removeProfilePhoto, updateMyAccount } from "../src/account-api";
 import { getMyReports, submitProblemReport } from "../src/report-api";
-import { apiUrl, getAccessToken } from "../src/api-client";
 
 const COLORS = {
   background: "#F9FAFB",
@@ -153,19 +152,22 @@ function BillingPage({ billingError, billingLoading, billingStatus, onBack }) {
   </ScrollView>;
 }
 
-// The photo endpoint needs the session token, so the image request carries it as a header.
-// `photoVersion` changes with every upload, which also busts the image cache.
+// The photo is fetched with the signed-in request and shown from a private cache file.
+// `photoVersion` changes with every upload, so each new photo loads fresh.
 function ProfilePhotoImage({ photoVersion, size }) {
-  const [token, setToken] = useState(null);
+  const [uri, setUri] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (!photoVersion) return undefined;
     let mounted = true;
-    getAccessToken().then((value) => { if (mounted) setToken(value); }).catch(() => {});
+    getProfilePhotoUri(photoVersion)
+      .then((value) => { if (mounted) setUri(value); })
+      .catch(() => { if (mounted) setFailed(true); });
     return () => { mounted = false; };
-  }, []);
-  if (!photoVersion || !token || failed) return <Ionicons name="person-outline" size={Math.round(size * 0.4)} color={COLORS.purple} />;
+  }, [photoVersion]);
+  if (!photoVersion || !uri || failed) return <Ionicons name="person-outline" size={Math.round(size * 0.4)} color={COLORS.purple} />;
   return <Image
-    source={{ uri: apiUrl(`/account/photo?v=${encodeURIComponent(photoVersion)}`), headers: { Authorization: `Bearer ${token}` } }}
+    source={{ uri }}
     style={{ width: size, height: size, borderRadius: size / 2 }}
     onError={() => setFailed(true)}
     accessibilityLabel="Profile photo"
@@ -1379,7 +1381,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeRoot} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
-          <View style={styles.logoContainer}><Image source={require("../assets/images/app_icon.png")} style={styles.logoImage} /><Text style={styles.logoText}>Sentistra.io</Text></View>
+          <View style={styles.logoContainer}><Image source={require("../assets/images/app_logo.png")} style={styles.logoImage} /><Text style={styles.logoText}>Sentistra.io</Text></View>
           <Pressable style={[styles.upgradeButton, hasPaidPlan && styles.plusButton, isSmallScreen && styles.upgradeButtonCompact]} onPress={hasPaidPlan ? openBilling : openSubscription} accessibilityLabel={hasPaidPlan ? "View Sentistra Plus billing" : "Upgrade Sentistra"}>
             {hasPaidPlan ? <MaterialCommunityIcons name="crown" size={17} color="#FFFFFF" /> : <Ionicons name="flash" size={15} color="#92400E" />}{!isSmallScreen && <Text style={[styles.upgradeText, hasPaidPlan && styles.plusText]}>{hasPaidPlan ? "Plus" : "Upgrade"}</Text>}
           </Pressable>

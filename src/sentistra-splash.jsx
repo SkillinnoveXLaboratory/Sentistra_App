@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Animated, Easing, Image, StatusBar, StyleSheet, Text, View } from "react-native";
 
-const LOGO = require("../assets/images/app_icon.png");
+// 512 px copy of app_icon.png: the full 2048 px file used ~16 MB of memory to draw a small logo.
+const LOGO = require("../assets/images/app_logo.png");
 
 export function SentistraSplash({ onComplete, onReady }) {
   const [logoProgress] = useState(() => new Animated.Value(0));
@@ -25,7 +26,7 @@ export function SentistraSplash({ onComplete, onReady }) {
 
   return (
     <View style={styles.screen} onLayout={onReady}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" hidden={false} translucent={false} />
+      <StatusBar barStyle="dark-content" hidden={false} />
       <View style={styles.brand}>
         <Animated.View style={[styles.logoWrap, { opacity: logoProgress }]}>
           <Image source={LOGO} resizeMode="contain" style={styles.logo} />

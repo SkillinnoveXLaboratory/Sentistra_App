@@ -80,7 +80,7 @@ jobs:
       - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sentistra-v1.0.6-release-apk
+          name: Sentistra-v1.0.7-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -89,10 +89,20 @@ jobs:
       - name: Upload signed release AAB
         uses: actions/upload-artifact@v4
         with:
-          name: Sentistra-v1.0.6-release-aab
+          name: Sentistra-v1.0.7-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
+
+      # R8 obfuscates release code; this file turns crash stack traces back into readable names.
+      # The AAB already carries it for Google Play, so this copy is only for manual lookups.
+      - name: Upload R8 mapping file
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sentistra-v1.0.7-r8-mapping
+          path: android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Remove release signing key
         if: always()

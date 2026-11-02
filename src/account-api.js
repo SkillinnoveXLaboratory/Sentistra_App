@@ -1,7 +1,26 @@
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import { File } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import { authenticatedFetch } from "./api-client";
+
+// Image `source.headers` is unreliable on Android, so the photo is downloaded with the
+// signed-in request and shown from a private cache file. The version in the file name
+// changes with every upload, so a cached file is never stale.
+export async function getProfilePhotoUri(photoVersion) {
+  const safeVersion = String(photoVersion).replace(/[^a-zA-Z0-9]/g, "");
+  if (!safeVersion) throw new Error("No profile photo.");
+  const cached = new File(Paths.cache, `sentistra-profile-${safeVersion}.jpg`);
+  if (cached.exists && cached.size > 0) return cached.uri;
+  const response = await authenticatedFetch(`/account/photo?v=${encodeURIComponent(photoVersion)}`, {
+    headers: { "Cache-Control": "no-cache" },
+  });
+  if (!response.ok) throw new Error("Unable to load your profile photo.");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.length) throw new Error("Unable to load your profile photo.");
+  if (!cached.exists) cached.create();
+  cached.write(bytes);
+  return cached.uri;
+}
 
 // Photos are stored small: the server accepts up to 2 MB, a 512 px JPEG is far below that.
 const PROFILE_PHOTO_SIZE = 512;

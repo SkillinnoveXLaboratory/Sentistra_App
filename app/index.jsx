@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/auth-context";
 
-const backgroundImage = require("../assets/images/index_img.png");
+// 1080 px wide copy of index_img.png, sized for phone screens.
+const backgroundImage = require("../assets/images/index_background.jpg");
 
 export default function App() {
   const router = useRouter();
