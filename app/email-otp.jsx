@@ -17,8 +17,9 @@ export default function EmailOtpScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (signupDraft.completed) return;
     if (!signupDraft.email || !signupDraft.otpChallengeId) router.replace("/email");
-  }, [router, signupDraft.email, signupDraft.otpChallengeId]);
+  }, [router, signupDraft.completed, signupDraft.email, signupDraft.otpChallengeId]);
 
   useEffect(() => {
     if (remaining <= 0) return undefined;

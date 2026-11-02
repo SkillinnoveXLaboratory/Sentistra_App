@@ -26,10 +26,12 @@ export default function SignupPasswordScreen() {
   const canSubmit = password.length >= 8 && password === confirmPassword && !loading;
 
   useEffect(() => {
+    // After the account is created the draft is cleared; do not redirect away from the dashboard.
+    if (signupDraft.completed) return;
     if (!signupDraft.emailVerificationToken || !signupDraft.name || !signupDraft.phone) {
       router.replace(signupDraft.emailVerificationToken ? "/signup-details" : "/email");
     }
-  }, [router, signupDraft.emailVerificationToken, signupDraft.name, signupDraft.phone]);
+  }, [router, signupDraft.completed, signupDraft.emailVerificationToken, signupDraft.name, signupDraft.phone]);
 
   const createAccount = async () => {
     if (password.length < 8) {
@@ -53,7 +55,9 @@ export default function SignupPasswordScreen() {
         password,
       });
       await setSession(session);
-      setSignupDraft({ email: "", name: "", phone: "", otpChallengeId: "", emailVerificationToken: "" });
+      // `completed` stops the sign-up screens still in the stack from redirecting to /email
+      // when their draft fields are cleared.
+      setSignupDraft({ email: "", name: "", phone: "", otpChallengeId: "", emailVerificationToken: "", completed: true });
       router.dismissAll();
       router.replace("/dashboard");
     } catch (requestError) {

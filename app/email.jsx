@@ -63,7 +63,7 @@ export default function EmailScreen() {
             setError("");
             try {
               const result = await requestSignupOtp(normalizedEmail);
-              setSignupDraft({ email: normalizedEmail, otpChallengeId: result.challenge_id, emailVerificationToken: "" });
+              setSignupDraft({ email: normalizedEmail, otpChallengeId: result.challenge_id, emailVerificationToken: "", completed: false });
               router.push("/email-otp");
             } catch (requestError) {
               setError(requestError.message || "Unable to send the verification code.");

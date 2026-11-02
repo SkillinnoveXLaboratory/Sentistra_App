@@ -22,8 +22,9 @@ export default function SignupDetailsScreen() {
   const canContinue = name.trim().length > 0 && phone.trim().length > 0;
 
   useEffect(() => {
+    if (signupDraft.completed) return;
     if (!signupDraft.email || !signupDraft.emailVerificationToken) router.replace("/email");
-  }, [router, signupDraft.email, signupDraft.emailVerificationToken]);
+  }, [router, signupDraft.completed, signupDraft.email, signupDraft.emailVerificationToken]);
 
   const continueSignup = () => {
     setSignupDraft({ name: name.trim(), phone: phone.trim() });

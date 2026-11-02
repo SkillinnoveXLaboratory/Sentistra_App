@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sentistra",
     "slug": "Sentistra",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "default",
     "icon": "./assets/images/Launch_Logo_app.png",
     "scheme": "sentistra",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.sentistra.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "icon": "./assets/images/Launch_Logo_app.png",
       "googleServicesFile": "./components/google-services.json",
       "adaptiveIcon": {
