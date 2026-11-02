@@ -59,13 +59,15 @@ export async function pickAndUploadProfilePhoto() {
   } catch {
     throw new Error("This photo could not be read. Please choose a different one.");
   }
+  const photoFile = new File(resized.uri);
   try {
+    // Expo's fetch only accepts real file objects in FormData, not React Native's { uri, name, type }.
     const form = new FormData();
-    form.append("photo", { uri: resized.uri, name: "profile.jpg", type: "image/jpeg" });
+    form.append("photo", photoFile);
     const response = await authenticatedFetch("/account/photo", { method: "PUT", body: form });
     return await readUserResponse(response, "Unable to update your profile photo.");
   } finally {
-    try { new File(resized.uri).delete(); } catch {}
+    try { photoFile.delete(); } catch {}
   }
 }
 
