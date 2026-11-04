@@ -44,8 +44,10 @@ jobs:
       - name: Raise Gradle memory
         run: |
           sed -i '/^org.gradle.jvmargs=/d' android/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> android/gradle.properties
-          grep "^org.gradle.jvmargs=" android/gradle.properties
+          # The generated file has no trailing newline; start a new line so the setting is not
+          # glued onto the previous property.
+          printf '\norg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8\n' >> android/gradle.properties
+          grep "^org.gradle.jvmargs=-Xmx6g" android/gradle.properties
 
       - name: Verify generated launcher icon inputs
         run: |
