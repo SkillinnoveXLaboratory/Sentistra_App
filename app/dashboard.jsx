@@ -179,7 +179,7 @@ function ProfilePhoto({ photoVersion, size }) {
   return <ProfilePhotoImage key={photoVersion || "none"} photoVersion={photoVersion} size={size} />;
 }
 
-function AccountSettingsPage({ accountError, accountName, accountPhone, accountSaving, photoBusy, photoVersion, onBack, onChangePhoto, onNameChange, onPhoneChange, onRemovePhoto, onSave }) {
+function AccountSettingsPage({ accountError, accountName, accountPhone, accountSaving, phoneRequired, photoBusy, photoVersion, onBack, onChangePhoto, onNameChange, onPhoneChange, onRemovePhoto, onSave }) {
   return <ScrollView style={styles.mainScroll} contentContainerStyle={styles.subpageContent} keyboardShouldPersistTaps="handled">
     <DashboardSubpageHeader title="Account Settings" subtitle="Manage your account details securely." onBack={onBack} />
     <View style={styles.accountSettingsCard}>
@@ -202,7 +202,8 @@ function AccountSettingsPage({ accountError, accountName, accountPhone, accountS
       <Text style={styles.accountLabel}>FULL NAME</Text>
       <TextInput value={accountName} onChangeText={onNameChange} style={styles.accountInput} autoCapitalize="words" autoCorrect={false} maxLength={80} placeholder="Your full name" placeholderTextColor="#9CA3AF" />
       <Text style={styles.accountLabel}>PHONE NUMBER</Text>
-      <TextInput value={accountPhone} onChangeText={onPhoneChange} style={styles.accountInput} keyboardType="phone-pad" maxLength={16} placeholder="Your phone number" placeholderTextColor="#9CA3AF" />
+      {phoneRequired && <View style={styles.phoneRequiredNote}><Ionicons name="card-outline" size={16} color="#92400E" /><Text style={styles.phoneRequiredText}>Add your phone number to continue to payment. Our payment partner needs it to process your plan.</Text></View>}
+      <TextInput value={accountPhone} onChangeText={onPhoneChange} style={[styles.accountInput, phoneRequired && styles.accountInputHighlight]} keyboardType="phone-pad" maxLength={16} placeholder="Your phone number" placeholderTextColor="#9CA3AF" autoFocus={phoneRequired} />
       {!!accountError && <Text style={styles.accountError}>{accountError}</Text>}
       <Pressable style={[styles.accountSaveButton, accountSaving && styles.accountSaveButtonDisabled]} disabled={accountSaving} onPress={onSave}><Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" /><Text style={styles.accountSaveText}>{accountSaving ? "Saving changes..." : "Save changes"}</Text></Pressable>
     </View>
@@ -1102,6 +1103,8 @@ export default function DashboardScreen() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // Set while Account Settings was opened because checkout needs a phone number.
+  const [phoneRequiredPlanKey, setPhoneRequiredPlanKey] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [accountPhone, setAccountPhone] = useState("");
@@ -1216,8 +1219,23 @@ export default function DashboardScreen() {
     }
     catch (error) { setSubscriptionError(error.message || "Unable to load plans."); }
   };
+  // Cashfree needs a phone number; Google accounts start without one. Send the user to
+  // Account Settings and bring them back to the chosen plan once the number is saved.
+  const requestPhoneForCheckout = (planKey) => {
+    setPhoneRequiredPlanKey(planKey || selectedPlanKey);
+    setSubscriptionOpen(false);
+    setAccountName(user?.name || "");
+    setAccountPhone(user?.phone || "");
+    setAccountError("");
+    setAccountOpen(true);
+  };
+
   const claimSubscription = async (planKey) => {
     if (checkoutProcessing) return;
+    if (!String(user?.phone || "").replace(/\D/g, "")) {
+      requestPhoneForCheckout(planKey);
+      return;
+    }
     setCheckoutProcessing(true);
     setSubscriptionError("");
     try {
@@ -1239,6 +1257,11 @@ export default function DashboardScreen() {
     } catch (error) {
       clearCashfreeCallback();
       setCheckoutProcessing(false);
+      // The server is the final check (e.g. the number was removed on another device).
+      if (error.code === "PHONE_REQUIRED") {
+        requestPhoneForCheckout(planKey);
+        return;
+      }
       setSubscriptionError(error.message || "Unable to open secure checkout.");
     }
   };
@@ -1257,6 +1280,7 @@ export default function DashboardScreen() {
   };
 
   const openAccountSettings = () => {
+    setPhoneRequiredPlanKey(null);
     setAccountName(user?.name || "");
     setAccountPhone(user?.phone || "");
     setAccountError("");
@@ -1310,6 +1334,15 @@ export default function DashboardScreen() {
       const updatedUser = await updateMyAccount({ name: accountName, phone: accountPhone });
       await updateStoredUser(updatedUser);
       setAccountOpen(false);
+      if (phoneRequiredPlanKey) {
+        // Return to the plan the user was buying; they tap Pay again to open checkout.
+        const planKey = phoneRequiredPlanKey;
+        setPhoneRequiredPlanKey(null);
+        setSelectedPlanKey(planKey);
+        openSubscription();
+        Alert.alert("Phone number saved", "You can now continue to payment.");
+        return;
+      }
       Alert.alert("Account updated", "Your name and phone number have been saved.");
     } catch (error) {
       setAccountError(error.message || "Unable to save account changes.");
@@ -1366,7 +1399,7 @@ export default function DashboardScreen() {
   const renderView = () => {
     if (subscriptionOpen) return <SubscriptionPage checkoutProcessing={checkoutProcessing} errorMessage={subscriptionError} onBack={() => setSubscriptionOpen(false)} onClaim={claimSubscription} onSelectPlan={setSelectedPlanKey} plans={subscriptionPlans} selectedPlanKey={selectedPlanKey} />;
     if (billingOpen) return <BillingPage billingError={billingError} billingLoading={billingLoading} billingStatus={billingStatus} onBack={() => setBillingOpen(false)} />;
-    if (accountOpen) return <AccountSettingsPage accountError={accountError} accountName={accountName} accountPhone={accountPhone} accountSaving={accountSaving} photoBusy={photoBusy} photoVersion={user?.photoVersion} onBack={() => setAccountOpen(false)} onChangePhoto={changeProfilePhoto} onNameChange={setAccountName} onPhoneChange={setAccountPhone} onRemovePhoto={confirmRemoveProfilePhoto} onSave={saveAccountSettings} />;
+    if (accountOpen) return <AccountSettingsPage accountError={accountError} accountName={accountName} accountPhone={accountPhone} accountSaving={accountSaving} phoneRequired={!!phoneRequiredPlanKey} photoBusy={photoBusy} photoVersion={user?.photoVersion} onBack={() => { setAccountOpen(false); setPhoneRequiredPlanKey(null); }} onChangePhoto={changeProfilePhoto} onNameChange={setAccountName} onPhoneChange={setAccountPhone} onRemovePhoto={confirmRemoveProfilePhoto} onSave={saveAccountSettings} />;
     if (privacyOpen) return <PrivacyPolicyPage onBack={() => setPrivacyOpen(false)} />;
     if (reportOpen) return <ReportProblemPage onBack={() => setReportOpen(false)} />;
     if (activeView === "files") return <FilesView />;
@@ -1522,6 +1555,9 @@ const styles = StyleSheet.create({
   accountSettingsText: { marginTop: 7, color: COLORS.muted, fontSize: 13, lineHeight: 20 },
   accountLabel: { marginTop: 22, color: COLORS.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
   accountInput: { minHeight: 50, marginTop: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, color: COLORS.dark, fontSize: 15, backgroundColor: "#FFFFFF" },
+  phoneRequiredNote: { marginTop: 8, padding: 12, borderRadius: 12, flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF3C7" },
+  phoneRequiredText: { flex: 1, color: "#92400E", fontSize: 13, lineHeight: 19, fontWeight: "600" },
+  accountInputHighlight: { borderColor: COLORS.purple, borderWidth: 2 },
   accountError: { marginTop: 14, color: "#B91C1C", fontSize: 13, lineHeight: 19 },
   accountSaveButton: { minHeight: 50, marginTop: 24, borderRadius: 25, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: COLORS.purple },
   accountSaveButtonDisabled: { opacity: 0.65 },

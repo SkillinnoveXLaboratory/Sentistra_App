@@ -5,7 +5,12 @@ import { authenticatedFetch } from "./api-client";
 async function paymentRequest(path, options = {}) {
   const response = await authenticatedFetch(path, options);
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Payment request failed.");
+  if (!response.ok) {
+    const error = new Error(result.error || "Payment request failed.");
+    // e.g. PHONE_REQUIRED, so the app can send the user to Account Settings.
+    error.code = result.code || "";
+    throw error;
+  }
   return result;
 }
 
